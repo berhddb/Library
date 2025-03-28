@@ -2453,7 +2453,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		repeat task.wait() until Passthrough
 	end
 
-	
+	if WindowSettings.LoadingEnabled then
 		task.wait(0.3)
 		TweenService:Create(LoadingFrame.Frame.Frame.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
 		TweenService:Create(LoadingFrame.Frame.ImageLabel, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
