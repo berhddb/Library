@@ -6648,12 +6648,20 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 	UserInputService.InputBegan:Connect(function(input, gpe)
 		if gpe then return end
-		if Window.State then return end
+		if Window.State then
 		if input.KeyCode == Window.Bind then
 			Unhide(Main, Window.CurrentTab)
-			PoltergeistUI.MobileSupport.Visible = not PoltergeistUI.MobileSupport.Visible
-			dragBar.Visible = not dragBar.Visible
-			Window.State = not Window.State = true
+			PoltergeistUI.MobileSupport.Visible = false
+			dragBar.Visible = faldr
+			Window.State = false
+		end
+		else
+		if input.KeyCode == Window.Bind then
+			Unhide(Main, Window.CurrentTab)
+			PoltergeistUI.MobileSupport.Visible = false
+			dragBar.Visible = true
+			Window.State = true
+		end
 		end
 	end)
 
