@@ -2319,8 +2319,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 	PoltergeistUI.Enabled = true
 
-	BlurModule(Main)
-
 	if WindowSettings.KeySystem then
 		local KeySettings = WindowSettings.KeySettings
 		
