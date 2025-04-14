@@ -3188,15 +3188,16 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			end
 
--- Progress Bar Function
-function Section:CreateProgressBar(ProgressBarSettings, Flag)
-    TabPage.Position = UDim2.new(0,0,0,28)
+			function Tab:CreateProgressBar(ProgressBarSettings, Flag)
     local ProgressBarV = { IgnoreConfig = false, Class = "ProgressBar", Settings = ProgressBarSettings }
 
     ProgressBarSettings = Kwargify({
         Name = "Progress Bar",
         CurrentValue = 0,
-        Max = 100,
+        MaxValue = 100,
+        ShowPercentage = true,
+        TweenDuration = 0.5, -- Tempo da animação em segundos
+        TweenEasing = Enum.EasingStyle.Quad, -- Estilo da animação
         Callback = function(Value) end,
     }, ProgressBarSettings or {})
 
@@ -3208,9 +3209,12 @@ function Section:CreateProgressBar(ProgressBarSettings, Flag)
 
     -- Remove interactive elements
     ProgressBar.Interact:Destroy()
+    
+    -- Rename value text to percentage
     ProgressBar.Value.Name = "PercentageText"
+    ProgressBar.PercentageText.Text = "0%"
 
-    -- Visual setup
+    -- Initial visual setup
     ProgressBar.BackgroundTransparency = 1
     ProgressBar.UIStroke.Transparency = 1
     ProgressBar.Title.TextTransparency = 1
@@ -3219,54 +3223,68 @@ function Section:CreateProgressBar(ProgressBarSettings, Flag)
     TweenService:Create(ProgressBar.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
     TweenService:Create(ProgressBar.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
 
-    -- Update function
+    -- Update function with tween animation
     local function UpdateProgress()
-        local percentage = math.floor((ProgressBarSettings.CurrentValue / ProgressBarSettings.Max) * 100)
-        ProgressBar.PercentageText.Text = tostring(percentage) .. "%"
+        local percentage = math.floor((ProgressBarSettings.CurrentValue / ProgressBarSettings.MaxValue) * 100)
+        local targetWidth = ProgressBar.Main.AbsoluteSize.X * (ProgressBarSettings.CurrentValue / ProgressBarSettings.MaxValue)
+        targetWidth = math.clamp(targetWidth, 5, ProgressBar.Main.AbsoluteSize.X)
         
-        local progressWidth = ProgressBar.Main.AbsoluteSize.X * (ProgressBarSettings.CurrentValue / ProgressBarSettings.Max)
-        ProgressBar.Main.Progress.Size = UDim2.new(0, math.clamp(progressWidth, 5, ProgressBar.Main.AbsoluteSize.X), 1, 0)
+        -- Animate the progress bar
+        TweenService:Create(ProgressBar.Main.Progress, TweenInfo.new(
+            ProgressBarSettings.TweenDuration,
+            ProgressBarSettings.TweenEasing
+        ), {
+            Size = UDim2.new(0, targetWidth, 1, 0)
+        }):Play()
+        
+        -- Update percentage text (instant)
+        ProgressBar.PercentageText.Text = tostring(percentage) .. "%"
         
         pcall(ProgressBarSettings.Callback, ProgressBarSettings.CurrentValue)
     end
 
-    -- Initial setup
-    UpdateProgress()
-
     -- Public methods
     function ProgressBarV:SetValue(Value)
-        ProgressBarSettings.CurrentValue = math.clamp(Value, 0, ProgressBarSettings.Max)
+        ProgressBarSettings.CurrentValue = math.clamp(Value, 0, ProgressBarSettings.MaxValue)
         UpdateProgress()
     end
 
     function ProgressBarV:SetMax(MaxValue)
-        ProgressBarSettings.Max = MaxValue
+        ProgressBarSettings.MaxValue = MaxValue
         UpdateProgress()
     end
 
     function ProgressBarV:UpdateSettings(NewSettings)
         ProgressBarSettings = Kwargify(ProgressBarSettings, NewSettings or {})
-        ProgressBar.Title.Text = ProgressBarSettings.Name
+        if NewSettings.TweenDuration then
+            ProgressBarSettings.TweenDuration = NewSettings.TweenDuration
+        end
+        if NewSettings.TweenEasing then
+            ProgressBarSettings.TweenEasing = NewSettings.TweenEasing
+        end
         UpdateProgress()
     end
 
+    -- Rest of the code remains the same...
     function ProgressBarV:Destroy()
         ProgressBar:Destroy()
     end
 
-    if Flag then
-        Poltergeist.Options[Flag] = ProgressBarV
-    end
-
-    -- Theme support
     PoltergeistUI.ThemeRemote:GetPropertyChangedSignal("Value"):Connect(function()
         ProgressBar.Main.color.Color = Poltergeist.ThemeGradient
         ProgressBar.Main.UIStroke.color.Color = Poltergeist.ThemeGradient
     end)
 
+    if Flag then
+        Poltergeist.Options[Flag] = ProgressBarV
+    end
+
+    -- Initial update
+    UpdateProgress()
+
     return ProgressBarV
 end
-
+			
 			-- Toggle
 			function Section:CreateToggle(ToggleSettings, Flag)    
 				TabPage.Position = UDim2.new(0,0,0,28)
