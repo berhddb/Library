@@ -2419,6 +2419,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 						end
 					end
 					tween(KeySystem, {BackgroundTransparency = 1}, nil,TweenInfo.new(0.6, Enum.EasingStyle.Exponential))
+					print('oi')
 					task.wait(0.51)
 					Passthrough = true
 					KeySystem.Visible = false
