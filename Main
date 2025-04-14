@@ -4855,7 +4855,90 @@ end
 			return SliderV
 
 		end
+function Tab:CreateProgressBar(ProgressBarSettings, Flag)
+    local ProgressBarV = { IgnoreConfig = false, Class = "ProgressBar", Settings = ProgressBarSettings }
 
+    ProgressBarSettings = Kwargify({
+        Name = "Progress Bar",
+        CurrentValue = 0,
+        MaxValue = 100,
+        ShowPercentage = true,
+        Callback = function(Value) end,
+    }, ProgressBarSettings or {})
+
+    local ProgressBar = Elements.Template.Slider:Clone()
+    ProgressBar.Name = ProgressBarSettings.Name .. " - ProgressBar"
+    ProgressBar.Title.Text = ProgressBarSettings.Name
+    ProgressBar.Visible = true
+    ProgressBar.Parent = TabPage
+
+    -- Remove interactive elements
+    ProgressBar.Interact:Destroy()
+    
+    -- Rename value text to percentage
+    ProgressBar.Value.Name = "PercentageText"
+    ProgressBar.PercentageText.Text = "0%"
+
+    -- Initial visual setup
+    ProgressBar.BackgroundTransparency = 1
+    ProgressBar.UIStroke.Transparency = 1
+    ProgressBar.Title.TextTransparency = 1
+
+    TweenService:Create(ProgressBar, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+    TweenService:Create(ProgressBar.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+    TweenService:Create(ProgressBar.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+    -- Update function
+    local function UpdateProgress()
+        local percentage = math.floor((ProgressBarSettings.CurrentValue / ProgressBarSettings.MaxValue) * 100)
+        local progressWidth = ProgressBar.Main.AbsoluteSize.X * (ProgressBarSettings.CurrentValue / ProgressBarSettings.MaxValue)
+        
+        ProgressBar.PercentageText.Text = tostring(percentage) .. "%"
+        ProgressBar.Main.Progress.Size = UDim2.new(0, math.clamp(progressWidth, 5, ProgressBar.Main.AbsoluteSize.X), 1, 0)
+        
+        pcall(ProgressBarSettings.Callback, ProgressBarSettings.CurrentValue)
+    end
+
+    -- Initial update
+    UpdateProgress()
+
+    -- Public methods
+    function ProgressBarV:SetValue(Value)
+        ProgressBarSettings.CurrentValue = math.clamp(Value, 0, ProgressBarSettings.MaxValue)
+        UpdateProgress()
+    end
+
+    function ProgressBarV:SetMax(MaxValue)
+        ProgressBarSettings.MaxValue = MaxValue
+        UpdateProgress()
+    end
+
+    function ProgressBarV:UpdateSettings(NewSettings)
+        ProgressBarSettings = Kwargify(ProgressBarSettings, NewSettings or {})
+        ProgressBar.Title.Text = ProgressBarSettings.Name
+        if NewSettings.ShowPercentage ~= nil then
+            ProgressBarSettings.ShowPercentage = NewSettings.ShowPercentage
+            ProgressBar.PercentageText.Visible = NewSettings.ShowPercentage
+        end
+        UpdateProgress()
+    end
+
+    function ProgressBarV:Destroy()
+        ProgressBar:Destroy()
+    end
+
+    -- Theme support
+    PoltergeistUI.ThemeRemote:GetPropertyChangedSignal("Value"):Connect(function()
+        ProgressBar.Main.color.Color = Poltergeist.ThemeGradient
+        ProgressBar.Main.UIStroke.color.Color = Poltergeist.ThemeGradient
+    end)
+
+    if Flag then
+        Poltergeist.Options[Flag] = ProgressBarV
+    end
+
+    return ProgressBarV
+end
 		-- Toggle
 		function Tab:CreateToggle(ToggleSettings, Flag)    
 			local ToggleV = { IgnoreConfig = false, Class = "Toggle" }
