@@ -2403,7 +2403,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 				end
 				if KeyFound then 
 					for _, instance in pairs(KeySystem:GetDescendants()) do
-						print('oi')
 						if instance.ClassName ~= "UICorner" and instance.ClassName ~= "UIPadding" and instance.ClassName ~= "UIListLayout" then
 							if instance.ClassName ~= "UIStroke" then
 								tween(instance, {BackgroundTransparency = 1}, nil,TweenInfo.new(0.6, Enum.EasingStyle.Exponential))
@@ -2420,7 +2419,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 						end
 					end
 					tween(KeySystem, {BackgroundTransparency = 1}, nil,TweenInfo.new(0.6, Enum.EasingStyle.Exponential))
-					print('oi')
 					task.wait(0.51)
 					Passthrough = true
 					KeySystem.Visible = false
@@ -3189,6 +3187,85 @@ function Poltergeist:CreateWindow(WindowSettings)
 				return SliderV
 
 			end
+
+-- Progress Bar Function
+function Section:CreateProgressBar(ProgressBarSettings, Flag)
+    TabPage.Position = UDim2.new(0,0,0,28)
+    local ProgressBarV = { IgnoreConfig = false, Class = "ProgressBar", Settings = ProgressBarSettings }
+
+    ProgressBarSettings = Kwargify({
+        Name = "Progress Bar",
+        CurrentValue = 0,
+        Max = 100,
+        Callback = function(Value) end,
+    }, ProgressBarSettings or {})
+
+    local ProgressBar = Elements.Template.Slider:Clone()
+    ProgressBar.Name = ProgressBarSettings.Name .. " - ProgressBar"
+    ProgressBar.Title.Text = ProgressBarSettings.Name
+    ProgressBar.Visible = true
+    ProgressBar.Parent = TabPage
+
+    -- Remove interactive elements
+    ProgressBar.Interact:Destroy()
+    ProgressBar.Value.Name = "PercentageText"
+
+    -- Visual setup
+    ProgressBar.BackgroundTransparency = 1
+    ProgressBar.UIStroke.Transparency = 1
+    ProgressBar.Title.TextTransparency = 1
+
+    TweenService:Create(ProgressBar, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+    TweenService:Create(ProgressBar.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+    TweenService:Create(ProgressBar.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+    -- Update function
+    local function UpdateProgress()
+        local percentage = math.floor((ProgressBarSettings.CurrentValue / ProgressBarSettings.Max) * 100)
+        ProgressBar.PercentageText.Text = tostring(percentage) .. "%"
+        
+        local progressWidth = ProgressBar.Main.AbsoluteSize.X * (ProgressBarSettings.CurrentValue / ProgressBarSettings.Max)
+        ProgressBar.Main.Progress.Size = UDim2.new(0, math.clamp(progressWidth, 5, ProgressBar.Main.AbsoluteSize.X), 1, 0)
+        
+        pcall(ProgressBarSettings.Callback, ProgressBarSettings.CurrentValue)
+    end
+
+    -- Initial setup
+    UpdateProgress()
+
+    -- Public methods
+    function ProgressBarV:SetValue(Value)
+        ProgressBarSettings.CurrentValue = math.clamp(Value, 0, ProgressBarSettings.Max)
+        UpdateProgress()
+    end
+
+    function ProgressBarV:SetMax(MaxValue)
+        ProgressBarSettings.Max = MaxValue
+        UpdateProgress()
+    end
+
+    function ProgressBarV:UpdateSettings(NewSettings)
+        ProgressBarSettings = Kwargify(ProgressBarSettings, NewSettings or {})
+        ProgressBar.Title.Text = ProgressBarSettings.Name
+        UpdateProgress()
+    end
+
+    function ProgressBarV:Destroy()
+        ProgressBar:Destroy()
+    end
+
+    if Flag then
+        Poltergeist.Options[Flag] = ProgressBarV
+    end
+
+    -- Theme support
+    PoltergeistUI.ThemeRemote:GetPropertyChangedSignal("Value"):Connect(function()
+        ProgressBar.Main.color.Color = Poltergeist.ThemeGradient
+        ProgressBar.Main.UIStroke.color.Color = Poltergeist.ThemeGradient
+    end)
+
+    return ProgressBarV
+end
 
 			-- Toggle
 			function Section:CreateToggle(ToggleSettings, Flag)    
