@@ -3188,8 +3188,9 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			end
 
+			-- Progress Bar
+
 			function Section:CreateProgressBar(ProgressBarSettings, Flag)
-    TabPage.Position = UDim2.new(0,0,0,28)
     local ProgressBarV = { IgnoreConfig = false, Class = "ProgressBar", Settings = ProgressBarSettings }
 
     ProgressBarSettings = Kwargify({
@@ -3197,8 +3198,11 @@ function Poltergeist:CreateWindow(WindowSettings)
         CurrentValue = 0,
         Max = 100,
         ShowPercentage = true,
-        AnimationSpeed = 0.3, -- Adicionado controle de velocidade de animação
-        Callback = function(Value) end,
+        AnimationSpeed = 0.3,
+        Callback = function(Value, Percentage)  -- Callback modificada para receber ambos valores
+            -- Value: valor atual (0 a Max)
+            -- Percentage: porcentagem (0 a 100)
+        end,
     }, ProgressBarSettings or {})
 
     local ProgressBar = Elements.Template.Slider:Clone()
@@ -3221,36 +3225,41 @@ function Poltergeist:CreateWindow(WindowSettings)
     TweenService:Create(ProgressBar.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
     TweenService:Create(ProgressBar.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
 
-    -- Variáveis para animação
+    -- Animation control
     local currentTween = nil
     local currentPercentage = 0
+    local currentConnection = nil
 
-    -- Função para parar animações existentes
-    local function StopCurrentTween()
+    local function StopCurrentAnimations()
         if currentTween then
             currentTween:Cancel()
             currentTween = nil
         end
+        if currentConnection then
+            currentConnection:Disconnect()
+            currentConnection = nil
+        end
     end
 
-    -- Update function com animação
     local function UpdateProgress(Instant)
-        StopCurrentTween()
+        StopCurrentAnimations()
         
         local targetPercentage = (ProgressBarSettings.CurrentValue / ProgressBarSettings.Max) * 100
         local targetWidth = ProgressBar.Main.AbsoluteSize.X * (ProgressBarSettings.CurrentValue / ProgressBarSettings.Max)
         targetWidth = math.clamp(targetWidth, 5, ProgressBar.Main.AbsoluteSize.X)
 
         if Instant or ProgressBarSettings.AnimationSpeed <= 0 then
-            -- Atualização instantânea
+            -- Update instantly
             ProgressBar.PercentageText.Text = string.format("%.1f%%", targetPercentage)
             ProgressBar.Main.Progress.Size = UDim2.new(0, targetWidth, 1, 0)
             currentPercentage = targetPercentage
+            pcall(ProgressBarSettings.Callback, ProgressBarSettings.CurrentValue, targetPercentage)
         else
-            -- Animação suave
+            -- Animate progress
             local startPercentage = currentPercentage
             local startWidth = ProgressBar.Main.Progress.AbsoluteSize.X
             
+            -- Animate bar
             currentTween = TweenService:Create(
                 ProgressBar.Main.Progress,
                 TweenInfo.new(
@@ -3260,58 +3269,67 @@ function Poltergeist:CreateWindow(WindowSettings)
                 ),
                 {Size = UDim2.new(0, targetWidth, 1, 0)}
             )
-            
             currentTween:Play()
             
-            -- Animação do texto de porcentagem
+            -- Animate percentage text
             local startTime = tick()
-            local connection
-            connection = RunService.Heartbeat:Connect(function()
+            currentConnection = RunService.Heartbeat:Connect(function()
                 local elapsed = tick() - startTime
                 local progress = math.min(elapsed / ProgressBarSettings.AnimationSpeed, 1)
                 currentPercentage = startPercentage + (targetPercentage - startPercentage) * progress
                 ProgressBar.PercentageText.Text = string.format("%.1f%%", currentPercentage)
                 
+                -- Callback durante a animação
+                local currentValue = ProgressBarSettings.CurrentValue * progress
+                pcall(ProgressBarSettings.Callback, currentValue, currentPercentage)
+                
                 if progress >= 1 then
-                    connection:Disconnect()
+                    currentConnection:Disconnect()
+                    currentConnection = nil
+                    -- Callback final com valores exatos
+                    pcall(ProgressBarSettings.Callback, ProgressBarSettings.CurrentValue, targetPercentage)
                 end
             end)
         end
-        
-        pcall(ProgressBarSettings.Callback, ProgressBarSettings.CurrentValue)
     end
 
     -- Public methods
     function ProgressBarV:SetValue(Value, Instant)
         ProgressBarSettings.CurrentValue = math.clamp(Value, 0, ProgressBarSettings.Max)
         UpdateProgress(Instant)
+        return self  -- Permite method chaining
     end
 
     function ProgressBarV:SetMax(MaxValue, Instant)
         ProgressBarSettings.Max = MaxValue
         UpdateProgress(Instant)
+        return self
     end
 
     function ProgressBarV:UpdateSettings(NewSettings)
         ProgressBarSettings = Kwargify(ProgressBarSettings, NewSettings or {})
-        ProgressBar.Title.Text = ProgressBarSettings.Name
+        if NewSettings.Name then ProgressBar.Title.Text = NewSettings.Name end
         if NewSettings.ShowPercentage ~= nil then
-            ProgressBarSettings.ShowPercentage = NewSettings.ShowPercentage
             ProgressBar.PercentageText.Visible = NewSettings.ShowPercentage
         end
         if NewSettings.AnimationSpeed ~= nil then
             ProgressBarSettings.AnimationSpeed = NewSettings.AnimationSpeed
         end
         UpdateProgress(true)
+        return self
+    end
+
+    function ProgressBarV:GetCurrentValue()
+        return ProgressBarSettings.CurrentValue
+    end
+
+    function ProgressBarV:GetCurrentPercentage()
+        return (ProgressBarSettings.CurrentValue / ProgressBarSettings.Max) * 100
     end
 
     function ProgressBarV:Destroy()
-        StopCurrentTween()
+        StopCurrentAnimations()
         ProgressBar:Destroy()
-    end
-
-    if Flag then
-        Poltergeist.Options[Flag] = ProgressBarV
     end
 
     -- Theme support
@@ -3320,8 +3338,12 @@ function Poltergeist:CreateWindow(WindowSettings)
         ProgressBar.Main.UIStroke.color.Color = Poltergeist.ThemeGradient
     end)
 
-    -- Initial setup (instant)
+    -- Initial setup
     UpdateProgress(true)
+
+    if Flag then
+        Poltergeist.Options[Flag] = ProgressBarV
+    end
 
     return ProgressBarV
 end
