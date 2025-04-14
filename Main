@@ -3188,16 +3188,16 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			end
 
-			function Tab:CreateProgressBar(ProgressBarSettings, Flag)
+			function Section:CreateProgressBar(ProgressBarSettings, Flag)
+    TabPage.Position = UDim2.new(0,0,0,28)
     local ProgressBarV = { IgnoreConfig = false, Class = "ProgressBar", Settings = ProgressBarSettings }
 
     ProgressBarSettings = Kwargify({
         Name = "Progress Bar",
         CurrentValue = 0,
-        MaxValue = 100,
+        Max = 100,
         ShowPercentage = true,
-        TweenDuration = 0.5, -- Tempo da animação em segundos
-        TweenEasing = Enum.EasingStyle.Quad, -- Estilo da animação
+        AnimationSpeed = 0.3, -- Adicionado controle de velocidade de animação
         Callback = function(Value) end,
     }, ProgressBarSettings or {})
 
@@ -3209,12 +3209,10 @@ function Poltergeist:CreateWindow(WindowSettings)
 
     -- Remove interactive elements
     ProgressBar.Interact:Destroy()
-    
-    -- Rename value text to percentage
     ProgressBar.Value.Name = "PercentageText"
     ProgressBar.PercentageText.Text = "0%"
 
-    -- Initial visual setup
+    -- Visual setup
     ProgressBar.BackgroundTransparency = 1
     ProgressBar.UIStroke.Transparency = 1
     ProgressBar.Title.TextTransparency = 1
@@ -3223,244 +3221,110 @@ function Poltergeist:CreateWindow(WindowSettings)
     TweenService:Create(ProgressBar.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
     TweenService:Create(ProgressBar.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
 
-    -- Update function with tween animation
-    local function UpdateProgress()
-        local percentage = math.floor((ProgressBarSettings.CurrentValue / ProgressBarSettings.MaxValue) * 100)
-        local targetWidth = ProgressBar.Main.AbsoluteSize.X * (ProgressBarSettings.CurrentValue / ProgressBarSettings.MaxValue)
+    -- Variáveis para animação
+    local currentTween = nil
+    local currentPercentage = 0
+
+    -- Função para parar animações existentes
+    local function StopCurrentTween()
+        if currentTween then
+            currentTween:Cancel()
+            currentTween = nil
+        end
+    end
+
+    -- Update function com animação
+    local function UpdateProgress(Instant)
+        StopCurrentTween()
+        
+        local targetPercentage = (ProgressBarSettings.CurrentValue / ProgressBarSettings.Max) * 100
+        local targetWidth = ProgressBar.Main.AbsoluteSize.X * (ProgressBarSettings.CurrentValue / ProgressBarSettings.Max)
         targetWidth = math.clamp(targetWidth, 5, ProgressBar.Main.AbsoluteSize.X)
-        
-        -- Animate the progress bar
-        TweenService:Create(ProgressBar.Main.Progress, TweenInfo.new(
-            ProgressBarSettings.TweenDuration,
-            ProgressBarSettings.TweenEasing
-        ), {
-            Size = UDim2.new(0, targetWidth, 1, 0)
-        }):Play()
-        
-        -- Update percentage text (instant)
-        ProgressBar.PercentageText.Text = tostring(percentage) .. "%"
+
+        if Instant or ProgressBarSettings.AnimationSpeed <= 0 then
+            -- Atualização instantânea
+            ProgressBar.PercentageText.Text = string.format("%.1f%%", targetPercentage)
+            ProgressBar.Main.Progress.Size = UDim2.new(0, targetWidth, 1, 0)
+            currentPercentage = targetPercentage
+        else
+            -- Animação suave
+            local startPercentage = currentPercentage
+            local startWidth = ProgressBar.Main.Progress.AbsoluteSize.X
+            
+            currentTween = TweenService:Create(
+                ProgressBar.Main.Progress,
+                TweenInfo.new(
+                    ProgressBarSettings.AnimationSpeed,
+                    Enum.EasingStyle.Quad,
+                    Enum.EasingDirection.Out
+                ),
+                {Size = UDim2.new(0, targetWidth, 1, 0)}
+            )
+            
+            currentTween:Play()
+            
+            -- Animação do texto de porcentagem
+            local startTime = tick()
+            local connection
+            connection = RunService.Heartbeat:Connect(function()
+                local elapsed = tick() - startTime
+                local progress = math.min(elapsed / ProgressBarSettings.AnimationSpeed, 1)
+                currentPercentage = startPercentage + (targetPercentage - startPercentage) * progress
+                ProgressBar.PercentageText.Text = string.format("%.1f%%", currentPercentage)
+                
+                if progress >= 1 then
+                    connection:Disconnect()
+                end
+            end)
+        end
         
         pcall(ProgressBarSettings.Callback, ProgressBarSettings.CurrentValue)
     end
 
     -- Public methods
-    function ProgressBarV:SetValue(Value)
-        ProgressBarSettings.CurrentValue = math.clamp(Value, 0, ProgressBarSettings.MaxValue)
-        UpdateProgress()
+    function ProgressBarV:SetValue(Value, Instant)
+        ProgressBarSettings.CurrentValue = math.clamp(Value, 0, ProgressBarSettings.Max)
+        UpdateProgress(Instant)
     end
 
-    function ProgressBarV:SetMax(MaxValue)
-        ProgressBarSettings.MaxValue = MaxValue
-        UpdateProgress()
+    function ProgressBarV:SetMax(MaxValue, Instant)
+        ProgressBarSettings.Max = MaxValue
+        UpdateProgress(Instant)
     end
 
     function ProgressBarV:UpdateSettings(NewSettings)
         ProgressBarSettings = Kwargify(ProgressBarSettings, NewSettings or {})
-        if NewSettings.TweenDuration then
-            ProgressBarSettings.TweenDuration = NewSettings.TweenDuration
+        ProgressBar.Title.Text = ProgressBarSettings.Name
+        if NewSettings.ShowPercentage ~= nil then
+            ProgressBarSettings.ShowPercentage = NewSettings.ShowPercentage
+            ProgressBar.PercentageText.Visible = NewSettings.ShowPercentage
         end
-        if NewSettings.TweenEasing then
-            ProgressBarSettings.TweenEasing = NewSettings.TweenEasing
+        if NewSettings.AnimationSpeed ~= nil then
+            ProgressBarSettings.AnimationSpeed = NewSettings.AnimationSpeed
         end
-        UpdateProgress()
+        UpdateProgress(true)
     end
 
-    -- Rest of the code remains the same...
     function ProgressBarV:Destroy()
+        StopCurrentTween()
         ProgressBar:Destroy()
     end
-
-    PoltergeistUI.ThemeRemote:GetPropertyChangedSignal("Value"):Connect(function()
-        ProgressBar.Main.color.Color = Poltergeist.ThemeGradient
-        ProgressBar.Main.UIStroke.color.Color = Poltergeist.ThemeGradient
-    end)
 
     if Flag then
         Poltergeist.Options[Flag] = ProgressBarV
     end
 
-    -- Initial update
-    UpdateProgress()
+    -- Theme support
+    PoltergeistUI.ThemeRemote:GetPropertyChangedSignal("Value"):Connect(function()
+        ProgressBar.Main.color.Color = Poltergeist.ThemeGradient
+        ProgressBar.Main.UIStroke.color.Color = Poltergeist.ThemeGradient
+    end)
+
+    -- Initial setup (instant)
+    UpdateProgress(true)
 
     return ProgressBarV
 end
-			
-			-- Toggle
-			function Section:CreateToggle(ToggleSettings, Flag)    
-				TabPage.Position = UDim2.new(0,0,0,28)
-				local ToggleV = { IgnoreConfig = false, Class = "Toggle" }
-
-				ToggleSettings = Kwargify({
-					Name = "Toggle",
-					Description = nil,
-					CurrentValue = false,
-					Callback = function(Value)
-					end,
-				}, ToggleSettings or {})
-
-
-				local Toggle
-
-				if ToggleSettings.Description ~= nil and ToggleSettings.Description ~= "" then
-					Toggle = Elements.Template.ToggleDesc:Clone()
-				else
-					Toggle = Elements.Template.Toggle:Clone()
-				end
-
-				Toggle.Visible = true
-				Toggle.Parent = TabPage
-
-				Toggle.Name = ToggleSettings.Name .. " - Toggle"
-				Toggle.Title.Text = ToggleSettings.Name
-				if ToggleSettings.Description ~= nil and ToggleSettings.Description ~= "" then
-					Toggle.Desc.Text = ToggleSettings.Description
-				end
-
-				Toggle.UIStroke.Transparency = 1
-				Toggle.Title.TextTransparency = 1
-				if ToggleSettings.Description ~= nil and ToggleSettings.Description ~= "" then
-					Toggle.Desc.TextTransparency = 1
-				end
-
-				TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
-				if ToggleSettings.Description ~= nil and ToggleSettings.Description ~= "" then
-					TweenService:Create(Toggle.Desc, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-				end
-				TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-				TweenService:Create(Toggle.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
-
-				local function Set(bool)
-					if bool then
-						Toggle.toggle.color.Enabled = true
-						tween(Toggle.toggle, {BackgroundTransparency = 0})
-
-						Toggle.toggle.UIStroke.color.Enabled = true
-						tween(Toggle.toggle.UIStroke, {Color = Color3.new(255,255,255)})
-
-						tween(Toggle.toggle.val, {BackgroundColor3 = Color3.fromRGB(255,255,255), Position = UDim2.new(1,-23,0.5,0), BackgroundTransparency = 0.45})
-					else
-						Toggle.toggle.color.Enabled = false
-						Toggle.toggle.UIStroke.color.Enabled = false
-
-						Toggle.toggle.UIStroke.Color = Color3.fromRGB(97,97,97)
-
-						tween(Toggle.toggle, {BackgroundTransparency = 1})
-
-						tween(Toggle.toggle.val, {BackgroundColor3 = Color3.fromRGB(97,97,97), Position = UDim2.new(0,5,0.5,0), BackgroundTransparency = 0})
-					end
-
-					ToggleV.CurrentValue = bool
-				end
-
-				Toggle.Interact.MouseButton1Click:Connect(function()
-					ToggleSettings.CurrentValue = not ToggleSettings.CurrentValue
-					Set(ToggleSettings.CurrentValue)
-
-					local Success, Response = pcall(function()
-						ToggleSettings.Callback(ToggleSettings.CurrentValue)
-					end)
-					if not Success then
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-						TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-						Toggle.Title.Text = "Callback Error"
-						print("Poltergeist Interface Suite | "..ToggleSettings.Name.." Callback Error " ..tostring(Response))
-						wait(0.5)
-						Toggle.Title.Text = ToggleSettings.Name
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(32, 30, 38)}):Play()
-						TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-					end
-				end)
-
-				Toggle["MouseEnter"]:Connect(function()
-					tween(Toggle.UIStroke, {Color = Color3.fromRGB(87, 84, 104)})
-				end)
-
-				Toggle["MouseLeave"]:Connect(function()
-					tween(Toggle.UIStroke, {Color = Color3.fromRGB(64,61,76)})
-				end)
-
-				if ToggleSettings.CurrentValue then
-					Set(ToggleSettings.CurrentValue)
-					local Success, Response = pcall(function()
-						ToggleSettings.Callback(ToggleSettings.CurrentValue)
-					end)
-					if not Success then
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-						TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-						Toggle.Title.Text = "Callback Error"
-						print("Poltergeist Interface Suite | "..ToggleSettings.Name.." Callback Error " ..tostring(Response))
-						wait(0.5)
-						Toggle.Title.Text = ToggleSettings.Name
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(32, 30, 38)}):Play()
-						TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-					end
-				end
-
-				function ToggleV:UpdateState(State)
-					ToggleSettings.CurrentValue = State
-					Set(ToggleSettings.CurrentValue)
-				end
-
-				function ToggleV:Set(NewToggleSettings)
-
-					NewToggleSettings = Kwargify({
-						Name = ToggleSettings.Name,
-						Description = ToggleSettings.Description,
-						CurrentValue = ToggleSettings.CurrentValue,
-						Callback = ToggleSettings.Callback
-					}, NewToggleSettings or {})
-
-					ToggleV.Settings = NewToggleSettings
-					ToggleSettings = NewToggleSettings
-
-					Toggle.Name = ToggleSettings.Name .. " - Toggle"
-					Toggle.Title.Text = ToggleSettings.Name
-					if ToggleSettings.Description ~= nil and ToggleSettings.Description ~= "" and Toggle.Desc ~= nil then
-						Toggle.Desc.Text = ToggleSettings.Description
-					end
-
-					Set(ToggleSettings.CurrentValue)
-
-					ToggleV.CurrentValue = ToggleSettings.CurrentValue
-
-					local Success, Response = pcall(function()
-						ToggleSettings.Callback(ToggleSettings.CurrentValue)
-					end)
-					if not Success then
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-						TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-						Toggle.Title.Text = "Callback Error"
-						print("Poltergeist Interface Suite | "..ToggleSettings.Name.." Callback Error " ..tostring(Response))
-						wait(0.5)
-						Toggle.Title.Text = ToggleSettings.Name
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
-						TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(32, 30, 38)}):Play()
-						TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-					end
-				end
-
-				function ToggleV:Destroy()
-					Toggle.Visible = false
-					Toggle:Destroy()
-				end
-
-				PoltergeistUI.ThemeRemote:GetPropertyChangedSignal("Value"):Connect(function()
-					Toggle.toggle.color.Color = Poltergeist.ThemeGradient
-					Toggle.toggle.UIStroke.color.Color = Poltergeist.ThemeGradient
-				end)
-
-				if Flag then
-					Poltergeist.Options[Flag] = ToggleV
-				end
-
-				return ToggleV
-
-			end
 
 			-- Bind
 			function Section:CreateBind(BindSettings, Flag)
