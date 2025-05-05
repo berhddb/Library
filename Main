@@ -23,7 +23,7 @@ Deity/dp4pv/x64x70 | Certain Scripting and Testing ig
 
 ]]
 
-local Release = "v1.0.6"
+local Release = "v1.0.3"
 
 local Poltergeist = { Folder = "Poltergeist", Options = {}, ThemeGradient = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(117, 164, 206)), ColorSequenceKeypoint.new(0.50, Color3.fromRGB(123, 201, 201)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(224, 138, 175))} }
 
@@ -6474,17 +6474,17 @@ function Poltergeist:CreateWindow(WindowSettings)
 		if gpe then return end
 		if Window.State then
 		if input.KeyCode == Window.Bind then
+			Hide(Main, Window.Bind, true)
+			dragBar.Visible = false
+			Window.State = false
 			if UserInputService.KeyboardEnabled == false then
 				PoltergeistUI.MobileSupport.Visible = true
-			else
-				Hide(Main, Window.Bind, true)
-				dragBar.Visible = false
-				Window.State = false
 			end
 		end
 		else
 		if input.KeyCode == Window.Bind then
 			Unhide(Main, Window.CurrentTab)
+			PoltergeistUI.MobileSupport.Visible = false
 			dragBar.Visible = true
 			Window.State = true
 		end
