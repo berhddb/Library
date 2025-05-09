@@ -23,7 +23,7 @@ Deity/dp4pv/x64x70 | Certain Scripting and Testing ig
 
 ]]
 
-local Release = "v1.0.3"
+local Release = "v1.0.6"
 
 local Poltergeist = { Folder = "Poltergeist", Options = {}, ThemeGradient = ColorSequence.new{ColorSequenceKeypoint.new(0.00, Color3.fromRGB(117, 164, 206)), ColorSequenceKeypoint.new(0.50, Color3.fromRGB(123, 201, 201)), ColorSequenceKeypoint.new(1.00, Color3.fromRGB(224, 138, 175))} }
 
@@ -47,7 +47,9 @@ end
 -- Credits To Latte Softworks And qweery for Lucide And Material Icons Respectively.
 local IconModule = {
 	Lucide = nil,
-	Poltergeist = ["poltergeist"] = "http://www.roblox.com/asset/?id=101636243364181";,
+	Poltergeist = {
+		["poltergeist"] = "http://www.roblox.com/asset/?id=101636243364181";
+		},
 	Material = {
 		["perm_media"] = "http://www.roblox.com/asset/?id=6031215982";
 		["sticky_note_2"] = "http://www.roblox.com/asset/?id=6031265972";
