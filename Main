@@ -3197,7 +3197,379 @@ function Poltergeist:CreateWindow(WindowSettings)
 				return SliderV
 
 			end
+			-- Progress (Visual Slider, não interativo)
+			function Section:CreateProgress(ProgressSettings)
+				TabPage.Position = UDim2.new(0,0,0,28)
 
+				ProgressSettings = Kwargify({
+					Title = "Progress",
+					Description = nil,
+					Min = 0,
+					Max = 100,
+					Value = 0,
+					DisplayType = "Percent" -- "Percent" ou "Values"
+				}, ProgressSettings or {})
+
+				local ProgressV = { Settings = ProgressSettings }
+
+				local hasDesc = ProgressSettings.Description ~= nil and ProgressSettings.Description ~= ""
+
+				local Holder = Instance.new("Frame")
+				Holder.Name = ProgressSettings.Title .. " - Progress"
+				Holder.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+				Holder.BackgroundTransparency = 1
+				Holder.Size = UDim2.new(1, -25, 0, hasDesc and 64 or 50)
+				Holder.Parent = TabPage
+
+				local UICorner = Instance.new("UICorner", Holder)
+				UICorner.CornerRadius = UDim.new(0, 6)
+
+				local UIStroke = Instance.new("UIStroke", Holder)
+				UIStroke.Color = Color3.fromRGB(64,61,76)
+				UIStroke.Transparency = 1
+				UIStroke.Thickness = 1
+
+				local Title = Instance.new("TextLabel")
+				Title.BackgroundTransparency = 1
+				Title.Position = UDim2.new(0, 14, 0, 8)
+				Title.Size = UDim2.new(1, -90, 0, 16)
+				Title.Font = Enum.Font.GothamMedium
+				Title.TextSize = 13
+				Title.TextColor3 = Color3.fromRGB(240,240,240)
+				Title.TextXAlignment = Enum.TextXAlignment.Left
+				Title.TextTransparency = 1
+				Title.Text = ProgressSettings.Title
+				Title.Parent = Holder
+
+				local ValueLabel = Instance.new("TextLabel")
+				ValueLabel.BackgroundTransparency = 1
+				ValueLabel.AnchorPoint = Vector2.new(1, 0)
+				ValueLabel.Position = UDim2.new(1, -14, 0, 8)
+				ValueLabel.Size = UDim2.new(0, 70, 0, 16)
+				ValueLabel.Font = Enum.Font.GothamMedium
+				ValueLabel.TextSize = 13
+				ValueLabel.TextColor3 = Color3.fromRGB(200,200,200)
+				ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+				ValueLabel.TextTransparency = 1
+				ValueLabel.Parent = Holder
+
+				local Desc
+				if hasDesc then
+					Desc = Instance.new("TextLabel")
+					Desc.BackgroundTransparency = 1
+					Desc.Position = UDim2.new(0, 14, 0, 24)
+					Desc.Size = UDim2.new(1, -28, 0, 14)
+					Desc.Font = Enum.Font.Gotham
+					Desc.TextSize = 11
+					Desc.TextColor3 = Color3.fromRGB(150,150,150)
+					Desc.TextXAlignment = Enum.TextXAlignment.Left
+					Desc.TextTransparency = 1
+					Desc.Text = ProgressSettings.Description
+					Desc.Parent = Holder
+				end
+
+				local BarBack = Instance.new("Frame")
+				BarBack.BackgroundColor3 = Color3.fromRGB(45, 43, 53)
+				BarBack.BackgroundTransparency = 1
+				BarBack.Position = UDim2.new(0, 14, 0, hasDesc and 44 or 30)
+				BarBack.Size = UDim2.new(1, -28, 0, 8)
+				BarBack.Parent = Holder
+
+				local BarBackCorner = Instance.new("UICorner", BarBack)
+				BarBackCorner.CornerRadius = UDim.new(1, 0)
+
+				local Fill = Instance.new("Frame")
+				Fill.BackgroundColor3 = Color3.fromRGB(224, 138, 175)
+				Fill.BorderSizePixel = 0
+				Fill.Size = UDim2.new(0, 0, 1, 0)
+				Fill.Parent = BarBack
+
+				local FillCorner = Instance.new("UICorner", Fill)
+				FillCorner.CornerRadius = UDim.new(1, 0)
+
+				local FillGradient = Instance.new("UIGradient", Fill)
+				FillGradient.Color = Poltergeist.ThemeGradient
+
+				PoltergeistUI.ThemeRemote:GetPropertyChangedSignal("Value"):Connect(function()
+					FillGradient.Color = Poltergeist.ThemeGradient
+				end)
+
+				local function updateLabel()
+					if ProgressSettings.DisplayType == "Percent" then
+						local pct = (ProgressSettings.Value - ProgressSettings.Min) / (ProgressSettings.Max - ProgressSettings.Min) * 100
+						ValueLabel.Text = string.format("%d%%", math.clamp(pct, 0, 100))
+					else
+						ValueLabel.Text = tostring(ProgressSettings.Value) .. "/" .. tostring(ProgressSettings.Max)
+					end
+				end
+
+				local function refresh(animated)
+					local alpha = math.clamp((ProgressSettings.Value - ProgressSettings.Min) / (ProgressSettings.Max - ProgressSettings.Min), 0, 1)
+					updateLabel()
+					if animated == false then
+						Fill.Size = UDim2.new(alpha, 0, 1, 0)
+					else
+						TweenService:Create(Fill, TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(alpha, 0, 1, 0)}):Play()
+					end
+				end
+
+				refresh(false)
+
+				-- Entrada animada
+				TweenService:Create(Holder, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+				TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+				TweenService:Create(Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				TweenService:Create(ValueLabel, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				if Desc then TweenService:Create(Desc, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play() end
+				TweenService:Create(BarBack, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+
+				function ProgressV:Set(NewSettings)
+					NewSettings = Kwargify({
+						Title = ProgressSettings.Title,
+						Description = ProgressSettings.Description,
+						Min = ProgressSettings.Min,
+						Max = ProgressSettings.Max,
+						Value = ProgressSettings.Value,
+						DisplayType = ProgressSettings.DisplayType
+					}, NewSettings or {})
+
+					ProgressSettings = NewSettings
+					ProgressV.Settings = NewSettings
+
+					Title.Text = ProgressSettings.Title
+					if Desc then Desc.Text = ProgressSettings.Description end
+
+					refresh(true)
+				end
+
+				-- Atalho só pra trocar o valor sem reescrever tudo
+				function ProgressV:SetValue(NewValue)
+					ProgressSettings.Value = math.clamp(NewValue, ProgressSettings.Min, ProgressSettings.Max)
+					refresh(true)
+				end
+
+				function ProgressV:Destroy()
+					Holder.Visible = false
+					Holder:Destroy()
+				end
+
+				return ProgressV
+			end
+			-- Console
+			function Section:CreateConsole(ConsoleSettings)
+				TabPage.Position = UDim2.new(0,0,0,28)
+
+				ConsoleSettings = Kwargify({
+					Title = "Console",
+					MaxLines = 100
+				}, ConsoleSettings or {})
+
+				local ConsoleV = { Settings = ConsoleSettings, Lines = {} }
+
+				local Holder = Instance.new("Frame")
+				Holder.Name = ConsoleSettings.Title .. " - Console"
+				Holder.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+				Holder.BackgroundTransparency = 1
+				Holder.Size = UDim2.new(1, -25, 0, 180)
+				Holder.ClipsDescendants = true
+				Holder.Parent = TabPage
+
+				local UICorner = Instance.new("UICorner", Holder)
+				UICorner.CornerRadius = UDim.new(0, 6)
+
+				local UIStroke = Instance.new("UIStroke", Holder)
+				UIStroke.Color = Color3.fromRGB(64,61,76)
+				UIStroke.Transparency = 1
+
+				local Title = Instance.new("TextLabel")
+				Title.BackgroundTransparency = 1
+				Title.Position = UDim2.new(0, 14, 0, 6)
+				Title.Size = UDim2.new(1, -28, 0, 18)
+				Title.Font = Enum.Font.GothamMedium
+				Title.TextSize = 13
+				Title.TextColor3 = Color3.fromRGB(240,240,240)
+				Title.TextXAlignment = Enum.TextXAlignment.Left
+				Title.TextTransparency = 1
+				Title.Text = ConsoleSettings.Title
+				Title.Parent = Holder
+
+				local LineDiv = Instance.new("Frame")
+				LineDiv.BackgroundColor3 = Color3.fromRGB(60,58,70)
+				LineDiv.BackgroundTransparency = 1
+				LineDiv.BorderSizePixel = 0
+				LineDiv.Position = UDim2.new(0, 14, 0, 28)
+				LineDiv.Size = UDim2.new(1, -28, 0, 1)
+				LineDiv.Parent = Holder
+
+				local ScrollFrame = Instance.new("ScrollingFrame")
+				ScrollFrame.BackgroundTransparency = 1
+				ScrollFrame.Position = UDim2.new(0, 14, 0, 34)
+				ScrollFrame.Size = UDim2.new(1, -28, 1, -42)
+				ScrollFrame.CanvasSize = UDim2.new(0,0,0,0)
+				ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+				ScrollFrame.ScrollBarThickness = 3
+				ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100,100,100)
+				ScrollFrame.BorderSizePixel = 0
+				ScrollFrame.Parent = Holder
+
+				local ListLayout = Instance.new("UIListLayout", ScrollFrame)
+				ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+				ListLayout.Padding = UDim.new(0, 2)
+
+				TweenService:Create(Holder, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+				TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+				TweenService:Create(Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				TweenService:Create(LineDiv, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.3}):Play()
+
+				local typeColors = {
+					Print = Color3.fromRGB(220,220,220),
+					Warn = Color3.fromRGB(255, 200, 90),
+					Error = Color3.fromRGB(255, 110, 110),
+				}
+
+				local function pushLine(text, kind)
+					local order = #ConsoleV.Lines + 1
+
+					local Line = Instance.new("TextLabel")
+					Line.BackgroundTransparency = 1
+					Line.Size = UDim2.new(1, 0, 0, 16)
+					Line.Font = Enum.Font.Code
+					Line.TextSize = 12
+					Line.TextXAlignment = Enum.TextXAlignment.Left
+					Line.TextColor3 = typeColors[kind] or typeColors.Print
+					Line.TextTransparency = 1
+					Line.LayoutOrder = order
+					Line.RichText = true
+					local prefix = kind == "Warn" and "[WARN] " or kind == "Error" and "[ERROR] " or ""
+					Line.Text = prefix .. tostring(text)
+					Line.Parent = ScrollFrame
+
+					TweenService:Create(Line, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+					table.insert(ConsoleV.Lines, Line)
+
+					if #ConsoleV.Lines > ConsoleSettings.MaxLines then
+						local old = table.remove(ConsoleV.Lines, 1)
+						if old then old:Destroy() end
+					end
+
+					task.wait()
+					ScrollFrame.CanvasPosition = Vector2.new(0, ScrollFrame.CanvasSize.Y.Offset)
+				end
+
+				function ConsoleV:Print(text) pushLine(text, "Print") end
+				function ConsoleV:Warn(text) pushLine(text, "Warn") end
+				function ConsoleV:Error(text) pushLine(text, "Error") end
+
+				function ConsoleV:Clear()
+					for _, line in ipairs(ConsoleV.Lines) do
+						line:Destroy()
+					end
+					ConsoleV.Lines = {}
+				end
+
+				function ConsoleV:Destroy()
+					Holder.Visible = false
+					Holder:Destroy()
+				end
+
+				return ConsoleV
+			end
+			-- Changelog
+			function Section:CreateChangelog(Entries)
+				TabPage.Position = UDim2.new(0,0,0,28)
+
+				Entries = Entries or {}
+				local ChangelogV = { Entries = Entries }
+
+				local Holder = Instance.new("Frame")
+				Holder.Name = "Changelog"
+				Holder.BackgroundTransparency = 1
+				Holder.Size = UDim2.new(1, -25, 0, 0)
+				Holder.AutomaticSize = Enum.AutomaticSize.Y
+				Holder.Parent = TabPage
+
+				local ListLayout = Instance.new("UIListLayout", Holder)
+				ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+				ListLayout.Padding = UDim.new(0, 8)
+
+				local function buildEntry(entry, order)
+					local Card = Instance.new("Frame")
+					Card.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+					Card.BackgroundTransparency = 1
+					Card.Size = UDim2.new(1, 0, 0, 0)
+					Card.AutomaticSize = Enum.AutomaticSize.Y
+					Card.LayoutOrder = order
+					Card.Parent = Holder
+
+					local UICorner = Instance.new("UICorner", Card)
+					UICorner.CornerRadius = UDim.new(0, 6)
+
+					local UIStroke = Instance.new("UIStroke", Card)
+					UIStroke.Color = Color3.fromRGB(64,61,76)
+					UIStroke.Transparency = 1
+
+					local UIPadding = Instance.new("UIPadding", Card)
+					UIPadding.PaddingTop = UDim.new(0, 10)
+					UIPadding.PaddingBottom = UDim.new(0, 10)
+					UIPadding.PaddingLeft = UDim.new(0, 14)
+					UIPadding.PaddingRight = UDim.new(0, 14)
+
+					local Layout = Instance.new("UIListLayout", Card)
+					Layout.SortOrder = Enum.SortOrder.LayoutOrder
+					Layout.Padding = UDim.new(0, 4)
+
+					local Version = Instance.new("TextLabel")
+					Version.BackgroundTransparency = 1
+					Version.Size = UDim2.new(1, 0, 0, 18)
+					Version.Font = Enum.Font.GothamBold
+					Version.TextSize = 14
+					Version.TextColor3 = Color3.fromRGB(224, 138, 175)
+					Version.TextXAlignment = Enum.TextXAlignment.Left
+					Version.TextTransparency = 1
+					Version.LayoutOrder = 0
+					Version.Text = entry.Version or "vX.X"
+					Version.Parent = Card
+
+					TweenService:Create(Card, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+					TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+					TweenService:Create(Version, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+					for i, change in ipairs(entry.Changes or {}) do
+						local ChangeLine = Instance.new("TextLabel")
+						ChangeLine.BackgroundTransparency = 1
+						ChangeLine.Size = UDim2.new(1, 0, 0, 16)
+						ChangeLine.Font = Enum.Font.Gotham
+						ChangeLine.TextSize = 12
+						ChangeLine.TextColor3 = Color3.fromRGB(210,210,210)
+						ChangeLine.TextXAlignment = Enum.TextXAlignment.Left
+						ChangeLine.TextTransparency = 1
+						ChangeLine.LayoutOrder = i
+						ChangeLine.Text = "•  " .. tostring(change)
+						ChangeLine.Parent = Card
+
+						TweenService:Create(ChangeLine, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+					end
+
+					return Card
+				end
+
+				for i, entry in ipairs(Entries) do
+					buildEntry(entry, i)
+				end
+
+				function ChangelogV:AddEntry(entry)
+					table.insert(ChangelogV.Entries, entry)
+					buildEntry(entry, #ChangelogV.Entries)
+				end
+
+				function ChangelogV:Destroy()
+					Holder.Visible = false
+					Holder:Destroy()
+				end
+
+				return ChangelogV
+			end
 			-- Bind
 			function Section:CreateBind(BindSettings, Flag)
 				TabPage.Position = UDim2.new(0,0,0,28)
