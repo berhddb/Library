@@ -3570,6 +3570,150 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 				return ChangelogV
 			end
+			-- Search
+			function Tab:CreateSearch(SearchSettings)
+
+				SearchSettings = Kwargify({
+					PlaceholderText = "Search...",
+					HighlightColor = Color3.fromRGB(255, 221, 89)
+				}, SearchSettings or {})
+
+				local SearchV = { Settings = SearchSettings }
+
+				local Holder = Instance.new("Frame")
+				Holder.Name = "Search"
+				Holder.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+				Holder.BackgroundTransparency = 1
+				Holder.Size = UDim2.new(1, -25, 0, 38)
+				Holder.LayoutOrder = -999 -- sempre no topo
+				Holder.Parent = TabPage
+
+				local UICorner = Instance.new("UICorner", Holder)
+				UICorner.CornerRadius = UDim.new(0, 6)
+
+				local UIStroke = Instance.new("UIStroke", Holder)
+				UIStroke.Color = Color3.fromRGB(64,61,76)
+				UIStroke.Transparency = 1
+
+				local Icon = Instance.new("ImageLabel")
+				Icon.BackgroundTransparency = 1
+				Icon.Position = UDim2.new(0, 12, 0.5, -8)
+				Icon.Size = UDim2.new(0, 16, 0, 16)
+				Icon.Image = GetIcon("search", "Material")
+				Icon.ImageColor3 = Color3.fromRGB(180,180,180)
+				Icon.ImageTransparency = 1
+				Icon.Parent = Holder
+
+				local InputBox = Instance.new("TextBox")
+				InputBox.BackgroundTransparency = 1
+				InputBox.Position = UDim2.new(0, 36, 0, 0)
+				InputBox.Size = UDim2.new(1, -48, 1, 0)
+				InputBox.Font = Enum.Font.Gotham
+				InputBox.TextSize = 13
+				InputBox.TextColor3 = Color3.fromRGB(230,230,230)
+				InputBox.PlaceholderColor3 = Color3.fromRGB(140,140,140)
+				InputBox.PlaceholderText = SearchSettings.PlaceholderText
+				InputBox.Text = ""
+				InputBox.ClearTextOnFocus = false
+				InputBox.TextXAlignment = Enum.TextXAlignment.Left
+				InputBox.TextTransparency = 1
+				InputBox.Parent = Holder
+
+				TweenService:Create(Holder, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+				TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+				TweenService:Create(Icon, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.3}):Play()
+				TweenService:Create(InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+				InputBox.Focused:Connect(function()
+					tween(UIStroke, {Color = Color3.fromRGB(87, 84, 104)})
+				end)
+				InputBox.FocusLost:Connect(function()
+					tween(UIStroke, {Color = Color3.fromRGB(64,61,76)})
+				end)
+
+				-- pega o TextLabel de "nome" de qualquer elemento (Title) recursivamente, incluindo dentro de Sections
+				local function getTitleLabel(element)
+					local direct = element:FindFirstChild("Title")
+					if direct and direct:IsA("TextLabel") then
+						return direct
+					end
+					return nil
+				end
+
+				local originalStrokeColors = {}
+
+				local function resetHighlight(element)
+					local stroke = element:FindFirstChild("UIStroke")
+					if stroke and originalStrokeColors[element] then
+						tween(stroke, {Color = originalStrokeColors[element]})
+					end
+				end
+
+				local function highlight(element)
+					local stroke = element:FindFirstChild("UIStroke")
+					if stroke then
+						if not originalStrokeColors[element] then
+							originalStrokeColors[element] = stroke.Color
+						end
+						tween(stroke, {Color = SearchSettings.HighlightColor})
+					end
+				end
+
+				local function ScanAndFilter(query)
+					query = query:lower()
+
+					for _, element in ipairs(TabPage:GetChildren()) do
+
+						if element == Holder then continue end
+						if element.Name == "Title" and element.ClassName == "TextLabel" then continue end -- título da Tab
+
+						-- Section (tem Frame interno com os elementos reais)
+						local containerList = {}
+
+						if element:IsA("TextLabel") and element:FindFirstChild("Frame") then
+							-- é uma Section
+							for _, child in ipairs(element.Frame:GetChildren()) do
+								table.insert(containerList, child)
+							end
+						elseif element:IsA("Frame") or element:IsA("TextLabel") then
+							table.insert(containerList, element)
+						end
+
+						for _, child in ipairs(containerList) do
+							local titleLabel = getTitleLabel(child)
+							if titleLabel then
+								local matches = query == "" or string.find(titleLabel.Text:lower(), query, 1, true) ~= nil
+
+								if query == "" then
+									child.Visible = true
+									resetHighlight(child)
+								else
+									child.Visible = matches
+									if matches then
+										highlight(child)
+									end
+								end
+							end
+						end
+					end
+				end
+
+				InputBox:GetPropertyChangedSignal("Text"):Connect(function()
+					ScanAndFilter(InputBox.Text)
+				end)
+
+				function SearchV:Clear()
+					InputBox.Text = ""
+					ScanAndFilter("")
+				end
+
+				function SearchV:Destroy()
+					Holder.Visible = false
+					Holder:Destroy()
+				end
+
+				return SearchV
+			end
 			-- Bind
 			function Section:CreateBind(BindSettings, Flag)
 				TabPage.Position = UDim2.new(0,0,0,28)
