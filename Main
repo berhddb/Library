@@ -3570,22 +3570,26 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 				return ChangelogV
 			end
-			-- Search
-			function Tab:CreateSearch(SearchSettings)
+			-- Server Monitor
+			function Section:CreateServerMonitor(MonitorSettings)
+				TabPage.Position = UDim2.new(0,0,0,28)
 
-				SearchSettings = Kwargify({
-					PlaceholderText = "Search...",
-					HighlightColor = Color3.fromRGB(255, 221, 89)
-				}, SearchSettings or {})
+				MonitorSettings = Kwargify({
+					Title = "Server Monitor",
+					RefreshRate = 1, -- segundos entre atualizações
+					Fields = {"FPS", "ServerAge", "Region", "Players"} -- pode remover algum se quiser
+				}, MonitorSettings or {})
 
-				local SearchV = { Settings = SearchSettings }
+				local MonitorV = { Settings = MonitorSettings }
+
+				local fieldCount = #MonitorSettings.Fields
+				local rowHeight = 22
 
 				local Holder = Instance.new("Frame")
-				Holder.Name = "Search"
+				Holder.Name = MonitorSettings.Title .. " - ServerMonitor"
 				Holder.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
 				Holder.BackgroundTransparency = 1
-				Holder.Size = UDim2.new(1, -25, 0, 38)
-				Holder.LayoutOrder = -999 -- sempre no topo
+				Holder.Size = UDim2.new(1, -25, 0, 36 + (fieldCount * rowHeight) + 10)
 				Holder.Parent = TabPage
 
 				local UICorner = Instance.new("UICorner", Holder)
@@ -3595,124 +3599,179 @@ function Poltergeist:CreateWindow(WindowSettings)
 				UIStroke.Color = Color3.fromRGB(64,61,76)
 				UIStroke.Transparency = 1
 
-				local Icon = Instance.new("ImageLabel")
-				Icon.BackgroundTransparency = 1
-				Icon.Position = UDim2.new(0, 12, 0.5, -8)
-				Icon.Size = UDim2.new(0, 16, 0, 16)
-				Icon.Image = GetIcon("search", "Material")
-				Icon.ImageColor3 = Color3.fromRGB(180,180,180)
-				Icon.ImageTransparency = 1
-				Icon.Parent = Holder
+				local Title = Instance.new("TextLabel")
+				Title.BackgroundTransparency = 1
+				Title.Position = UDim2.new(0, 14, 0, 8)
+				Title.Size = UDim2.new(1, -28, 0, 16)
+				Title.Font = Enum.Font.GothamMedium
+				Title.TextSize = 13
+				Title.TextColor3 = Color3.fromRGB(240,240,240)
+				Title.TextXAlignment = Enum.TextXAlignment.Left
+				Title.TextTransparency = 1
+				Title.Text = MonitorSettings.Title
+				Title.Parent = Holder
 
-				local InputBox = Instance.new("TextBox")
-				InputBox.BackgroundTransparency = 1
-				InputBox.Position = UDim2.new(0, 36, 0, 0)
-				InputBox.Size = UDim2.new(1, -48, 1, 0)
-				InputBox.Font = Enum.Font.Gotham
-				InputBox.TextSize = 13
-				InputBox.TextColor3 = Color3.fromRGB(230,230,230)
-				InputBox.PlaceholderColor3 = Color3.fromRGB(140,140,140)
-				InputBox.PlaceholderText = SearchSettings.PlaceholderText
-				InputBox.Text = ""
-				InputBox.ClearTextOnFocus = false
-				InputBox.TextXAlignment = Enum.TextXAlignment.Left
-				InputBox.TextTransparency = 1
-				InputBox.Parent = Holder
+				local LineDiv = Instance.new("Frame")
+				LineDiv.BackgroundColor3 = Color3.fromRGB(60,58,70)
+				LineDiv.BackgroundTransparency = 1
+				LineDiv.BorderSizePixel = 0
+				LineDiv.Position = UDim2.new(0, 14, 0, 28)
+				LineDiv.Size = UDim2.new(1, -28, 0, 1)
+				LineDiv.Parent = Holder
 
 				TweenService:Create(Holder, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
 				TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-				TweenService:Create(Icon, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.3}):Play()
-				TweenService:Create(InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				TweenService:Create(Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				TweenService:Create(LineDiv, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.3}):Play()
 
-				InputBox.Focused:Connect(function()
-					tween(UIStroke, {Color = Color3.fromRGB(87, 84, 104)})
-				end)
-				InputBox.FocusLost:Connect(function()
-					tween(UIStroke, {Color = Color3.fromRGB(64,61,76)})
-				end)
+				local Rows = {}
 
-				-- pega o TextLabel de "nome" de qualquer elemento (Title) recursivamente, incluindo dentro de Sections
-				local function getTitleLabel(element)
-					local direct = element:FindFirstChild("Title")
-					if direct and direct:IsA("TextLabel") then
-						return direct
-					end
-					return nil
+				local labelNames = {
+					FPS = "Server FPS",
+					ServerAge = "Server Age",
+					Region = "Region",
+					Players = "Players",
+					Ping = "Ping",
+				}
+
+				for i, fieldKey in ipairs(MonitorSettings.Fields) do
+					local Row = Instance.new("Frame")
+					Row.BackgroundTransparency = 1
+					Row.Position = UDim2.new(0, 14, 0, 34 + ((i-1) * rowHeight))
+					Row.Size = UDim2.new(1, -28, 0, rowHeight)
+					Row.Parent = Holder
+
+					local Key = Instance.new("TextLabel")
+					Key.BackgroundTransparency = 1
+					Key.Size = UDim2.new(0.5, 0, 1, 0)
+					Key.Font = Enum.Font.Gotham
+					Key.TextSize = 12
+					Key.TextColor3 = Color3.fromRGB(170,170,170)
+					Key.TextXAlignment = Enum.TextXAlignment.Left
+					Key.TextTransparency = 1
+					Key.Text = labelNames[fieldKey] or fieldKey
+					Key.Parent = Row
+
+					local Value = Instance.new("TextLabel")
+					Value.BackgroundTransparency = 1
+					Value.AnchorPoint = Vector2.new(1, 0)
+					Value.Position = UDim2.new(1, 0, 0, 0)
+					Value.Size = UDim2.new(0.5, 0, 1, 0)
+					Value.Font = Enum.Font.GothamMedium
+					Value.TextSize = 12
+					Value.TextColor3 = Color3.fromRGB(230,230,230)
+					Value.TextXAlignment = Enum.TextXAlignment.Right
+					Value.TextTransparency = 1
+					Value.Text = "..."
+					Value.Parent = Row
+
+					TweenService:Create(Key, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+					TweenService:Create(Value, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+					Rows[fieldKey] = Value
 				end
 
-				local originalStrokeColors = {}
+				-- Helpers
+				local serverStart = os.clock()
 
-				local function resetHighlight(element)
-					local stroke = element:FindFirstChild("UIStroke")
-					if stroke and originalStrokeColors[element] then
-						tween(stroke, {Color = originalStrokeColors[element]})
+				local function format(int)
+					return string.format("%02i", int)
+				end
+
+				local function getServerAge()
+					local seconds = math.floor(os.clock() - serverStart)
+					local h = math.floor(seconds / 3600)
+					local m = math.floor((seconds % 3600) / 60)
+					local s = seconds % 60
+					if h > 0 then
+						return format(h).."h "..format(m).."m"
+					elseif m > 0 then
+						return format(m).."m "..format(s).."s"
+					else
+						return format(s).."s"
 					end
 				end
 
-				local function highlight(element)
-					local stroke = element:FindFirstChild("UIStroke")
-					if stroke then
-						if not originalStrokeColors[element] then
-							originalStrokeColors[element] = stroke.Color
+				local FPSBuffer = {}
+				local lastFPSUpdate = 0
+
+				local function getFPS()
+					local avg = 0
+					for _, v in ipairs(FPSBuffer) do avg += v end
+					avg = #FPSBuffer > 0 and (avg / #FPSBuffer) or 0
+					return math.floor(avg)
+				end
+
+				local heartbeatConn
+				heartbeatConn = RunService.Heartbeat:Connect(function(dt)
+					if dt > 0 then
+						table.insert(FPSBuffer, 1/dt)
+						if #FPSBuffer > 30 then
+							table.remove(FPSBuffer, 1)
 						end
-						tween(stroke, {Color = SearchSettings.HighlightColor})
 					end
-				end
-
-				local function ScanAndFilter(query)
-					query = query:lower()
-
-					for _, element in ipairs(TabPage:GetChildren()) do
-
-						if element == Holder then continue end
-						if element.Name == "Title" and element.ClassName == "TextLabel" then continue end -- título da Tab
-
-						-- Section (tem Frame interno com os elementos reais)
-						local containerList = {}
-
-						if element:IsA("TextLabel") and element:FindFirstChild("Frame") then
-							-- é uma Section
-							for _, child in ipairs(element.Frame:GetChildren()) do
-								table.insert(containerList, child)
-							end
-						elseif element:IsA("Frame") or element:IsA("TextLabel") then
-							table.insert(containerList, element)
-						end
-
-						for _, child in ipairs(containerList) do
-							local titleLabel = getTitleLabel(child)
-							if titleLabel then
-								local matches = query == "" or string.find(titleLabel.Text:lower(), query, 1, true) ~= nil
-
-								if query == "" then
-									child.Visible = true
-									resetHighlight(child)
-								else
-									child.Visible = matches
-									if matches then
-										highlight(child)
-									end
-								end
-							end
-						end
-					end
-				end
-
-				InputBox:GetPropertyChangedSignal("Text"):Connect(function()
-					ScanAndFilter(InputBox.Text)
 				end)
 
-				function SearchV:Clear()
-					InputBox.Text = ""
-					ScanAndFilter("")
+				local function refresh()
+					if Rows.FPS then
+						Rows.FPS.Text = tostring(getFPS())
+					end
+					if Rows.ServerAge then
+						Rows.ServerAge.Text = getServerAge()
+					end
+					if Rows.Region then
+						local ok, region = pcall(function()
+							return Localization:GetCountryRegionForPlayerAsync(Players.LocalPlayer)
+						end)
+						Rows.Region.Text = ok and region or "Unknown"
+					end
+					if Rows.Players then
+						Rows.Players.Text = #Players:GetPlayers() .. "/" .. Players.MaxPlayers
+					end
+					if Rows.Ping then
+						local ok, ping = pcall(function()
+							return math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
+						end)
+						Rows.Ping.Text = (ok and tostring(math.clamp(ping, 10, 999)) or "N/A") .. "ms"
+					end
 				end
 
-				function SearchV:Destroy()
+				refresh()
+
+				local loopRunning = true
+				task.spawn(function()
+					while loopRunning do
+						task.wait(MonitorSettings.RefreshRate)
+						if loopRunning then
+							refresh()
+						end
+					end
+				end)
+
+				function MonitorV:Refresh()
+					refresh()
+				end
+
+				function MonitorV:Set(NewSettings)
+					NewSettings = Kwargify({
+						Title = MonitorSettings.Title,
+						RefreshRate = MonitorSettings.RefreshRate,
+						Fields = MonitorSettings.Fields
+					}, NewSettings or {})
+
+					MonitorSettings = NewSettings
+					MonitorV.Settings = NewSettings
+					Title.Text = MonitorSettings.Title
+				end
+
+				function MonitorV:Destroy()
+					loopRunning = false
+					if heartbeatConn then heartbeatConn:Disconnect() end
 					Holder.Visible = false
 					Holder:Destroy()
 				end
 
-				return SearchV
+				return MonitorV
 			end
 			-- Bind
 			function Section:CreateBind(BindSettings, Flag)
