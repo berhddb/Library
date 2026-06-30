@@ -3570,26 +3570,26 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 				return ChangelogV
 			end
-			-- Server Monitor
-			function Section:CreateServerMonitor(MonitorSettings)
+			-- Player List
+			function Section:CreatePlayerList(PlayerListSettings)
 				TabPage.Position = UDim2.new(0,0,0,28)
 
-				MonitorSettings = Kwargify({
-					Title = "Server Monitor",
-					RefreshRate = 1, -- segundos entre atualizações
-					Fields = {"FPS", "ServerAge", "Region", "Players"} -- pode remover algum se quiser
-				}, MonitorSettings or {})
+				PlayerListSettings = Kwargify({
+					Title = "Players",
+					ShowTeam = false,
+					ShowDistance = false,
+					RefreshRate = 1, -- segundos entre updates de distância
+					MaxHeight = 180
+				}, PlayerListSettings or {})
 
-				local MonitorV = { Settings = MonitorSettings }
-
-				local fieldCount = #MonitorSettings.Fields
-				local rowHeight = 22
+				local PlayerListV = { Settings = PlayerListSettings, Rows = {} }
 
 				local Holder = Instance.new("Frame")
-				Holder.Name = MonitorSettings.Title .. " - ServerMonitor"
+				Holder.Name = PlayerListSettings.Title .. " - PlayerList"
 				Holder.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
 				Holder.BackgroundTransparency = 1
-				Holder.Size = UDim2.new(1, -25, 0, 36 + (fieldCount * rowHeight) + 10)
+				Holder.Size = UDim2.new(1, -25, 0, PlayerListSettings.MaxHeight)
+				Holder.ClipsDescendants = true
 				Holder.Parent = TabPage
 
 				local UICorner = Instance.new("UICorner", Holder)
@@ -3601,15 +3601,28 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 				local Title = Instance.new("TextLabel")
 				Title.BackgroundTransparency = 1
-				Title.Position = UDim2.new(0, 14, 0, 8)
-				Title.Size = UDim2.new(1, -28, 0, 16)
+				Title.Position = UDim2.new(0, 14, 0, 6)
+				Title.Size = UDim2.new(0.6, 0, 0, 18)
 				Title.Font = Enum.Font.GothamMedium
 				Title.TextSize = 13
 				Title.TextColor3 = Color3.fromRGB(240,240,240)
 				Title.TextXAlignment = Enum.TextXAlignment.Left
 				Title.TextTransparency = 1
-				Title.Text = MonitorSettings.Title
+				Title.Text = PlayerListSettings.Title
 				Title.Parent = Holder
+
+				local CountLabel = Instance.new("TextLabel")
+				CountLabel.BackgroundTransparency = 1
+				CountLabel.AnchorPoint = Vector2.new(1, 0)
+				CountLabel.Position = UDim2.new(1, -14, 0, 6)
+				CountLabel.Size = UDim2.new(0.4, 0, 0, 18)
+				CountLabel.Font = Enum.Font.Gotham
+				CountLabel.TextSize = 12
+				CountLabel.TextColor3 = Color3.fromRGB(160,160,160)
+				CountLabel.TextXAlignment = Enum.TextXAlignment.Right
+				CountLabel.TextTransparency = 1
+				CountLabel.Text = "0/0"
+				CountLabel.Parent = Holder
 
 				local LineDiv = Instance.new("Frame")
 				LineDiv.BackgroundColor3 = Color3.fromRGB(60,58,70)
@@ -3619,159 +3632,421 @@ function Poltergeist:CreateWindow(WindowSettings)
 				LineDiv.Size = UDim2.new(1, -28, 0, 1)
 				LineDiv.Parent = Holder
 
+				local ScrollFrame = Instance.new("ScrollingFrame")
+				ScrollFrame.BackgroundTransparency = 1
+				ScrollFrame.Position = UDim2.new(0, 14, 0, 34)
+				ScrollFrame.Size = UDim2.new(1, -28, 1, -42)
+				ScrollFrame.CanvasSize = UDim2.new(0,0,0,0)
+				ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+				ScrollFrame.ScrollBarThickness = 3
+				ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100,100,100)
+				ScrollFrame.BorderSizePixel = 0
+				ScrollFrame.Parent = Holder
+
+				local ListLayout = Instance.new("UIListLayout", ScrollFrame)
+				ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+				ListLayout.Padding = UDim.new(0, 4)
+
 				TweenService:Create(Holder, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
 				TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
 				TweenService:Create(Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				TweenService:Create(CountLabel, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
 				TweenService:Create(LineDiv, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.3}):Play()
 
-				local Rows = {}
+				local function getDistance(targetPlayer)
+					local lp = Players.LocalPlayer
+					local lc = lp.Character
+					local tc = targetPlayer.Character
+					if not lc or not tc then return nil end
+					local lroot = lc:FindFirstChild("HumanoidRootPart")
+					local troot = tc:FindFirstChild("HumanoidRootPart")
+					if not lroot or not troot then return nil end
+					return (lroot.Position - troot.Position).Magnitude
+				end
 
-				local labelNames = {
-					FPS = "Server FPS",
-					ServerAge = "Server Age",
-					Region = "Region",
-					Players = "Players",
-					Ping = "Ping",
-				}
-
-				for i, fieldKey in ipairs(MonitorSettings.Fields) do
+				local function buildRow(plr)
 					local Row = Instance.new("Frame")
+					Row.Name = plr.Name
+					Row.BackgroundColor3 = Color3.fromRGB(40, 38, 47)
 					Row.BackgroundTransparency = 1
-					Row.Position = UDim2.new(0, 14, 0, 34 + ((i-1) * rowHeight))
-					Row.Size = UDim2.new(1, -28, 0, rowHeight)
-					Row.Parent = Holder
+					Row.Size = UDim2.new(1, 0, 0, 36)
+					Row.Parent = ScrollFrame
 
-					local Key = Instance.new("TextLabel")
-					Key.BackgroundTransparency = 1
-					Key.Size = UDim2.new(0.5, 0, 1, 0)
-					Key.Font = Enum.Font.Gotham
-					Key.TextSize = 12
-					Key.TextColor3 = Color3.fromRGB(170,170,170)
-					Key.TextXAlignment = Enum.TextXAlignment.Left
-					Key.TextTransparency = 1
-					Key.Text = labelNames[fieldKey] or fieldKey
-					Key.Parent = Row
+					local RowCorner = Instance.new("UICorner", Row)
+					RowCorner.CornerRadius = UDim.new(0, 5)
 
-					local Value = Instance.new("TextLabel")
-					Value.BackgroundTransparency = 1
-					Value.AnchorPoint = Vector2.new(1, 0)
-					Value.Position = UDim2.new(1, 0, 0, 0)
-					Value.Size = UDim2.new(0.5, 0, 1, 0)
-					Value.Font = Enum.Font.GothamMedium
-					Value.TextSize = 12
-					Value.TextColor3 = Color3.fromRGB(230,230,230)
-					Value.TextXAlignment = Enum.TextXAlignment.Right
-					Value.TextTransparency = 1
-					Value.Text = "..."
-					Value.Parent = Row
+					local Avatar = Instance.new("ImageLabel")
+					Avatar.BackgroundTransparency = 1
+					Avatar.Position = UDim2.new(0, 6, 0.5, -14)
+					Avatar.Size = UDim2.new(0, 28, 0, 28)
+					Avatar.Image = Players:GetUserThumbnailAsync(plr.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+					Avatar.ImageTransparency = 1
+					Avatar.Parent = Row
 
-					TweenService:Create(Key, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-					TweenService:Create(Value, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+					local AvatarCorner = Instance.new("UICorner", Avatar)
+					AvatarCorner.CornerRadius = UDim.new(1, 0)
 
-					Rows[fieldKey] = Value
+					local NameLabel = Instance.new("TextLabel")
+					NameLabel.BackgroundTransparency = 1
+					NameLabel.Position = UDim2.new(0, 42, 0, 4)
+					NameLabel.Size = UDim2.new(1, -130, 0, 16)
+					NameLabel.Font = Enum.Font.GothamMedium
+					NameLabel.TextSize = 12
+					NameLabel.TextColor3 = Color3.fromRGB(235,235,235)
+					NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+					NameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+					NameLabel.TextTransparency = 1
+					NameLabel.Text = plr.DisplayName
+					NameLabel.Parent = Row
+
+					local UserLabel = Instance.new("TextLabel")
+					UserLabel.BackgroundTransparency = 1
+					UserLabel.Position = UDim2.new(0, 42, 0, 19)
+					UserLabel.Size = UDim2.new(1, -130, 0, 14)
+					UserLabel.Font = Enum.Font.Gotham
+					UserLabel.TextSize = 10
+					UserLabel.TextColor3 = Color3.fromRGB(150,150,150)
+					UserLabel.TextXAlignment = Enum.TextXAlignment.Left
+					UserLabel.TextTruncate = Enum.TextTruncate.AtEnd
+					UserLabel.TextTransparency = 1
+					UserLabel.Text = "@" .. plr.Name
+					UserLabel.Parent = Row
+
+					local TeamLabel
+					if PlayerListSettings.ShowTeam then
+						TeamLabel = Instance.new("TextLabel")
+						TeamLabel.BackgroundTransparency = 1
+						TeamLabel.AnchorPoint = Vector2.new(1, 0)
+						TeamLabel.Position = UDim2.new(1, -8, 0, 4)
+						TeamLabel.Size = UDim2.new(0, 80, 0, 16)
+						TeamLabel.Font = Enum.Font.GothamMedium
+						TeamLabel.TextSize = 11
+						TeamLabel.TextXAlignment = Enum.TextXAlignment.Right
+						TeamLabel.TextTruncate = Enum.TextTruncate.AtEnd
+						TeamLabel.TextTransparency = 1
+						TeamLabel.Text = plr.Team and plr.Team.Name or "No Team"
+						TeamLabel.TextColor3 = plr.Team and plr.Team.TeamColor.Color or Color3.fromRGB(150,150,150)
+						TeamLabel.Parent = Row
+					end
+
+					local DistanceLabel
+					if PlayerListSettings.ShowDistance then
+						DistanceLabel = Instance.new("TextLabel")
+						DistanceLabel.BackgroundTransparency = 1
+						DistanceLabel.AnchorPoint = Vector2.new(1, 0)
+						DistanceLabel.Position = UDim2.new(1, -8, 0, 19)
+						DistanceLabel.Size = UDim2.new(0, 80, 0, 14)
+						DistanceLabel.Font = Enum.Font.Gotham
+						DistanceLabel.TextSize = 10
+						DistanceLabel.TextColor3 = Color3.fromRGB(150,150,150)
+						DistanceLabel.TextXAlignment = Enum.TextXAlignment.Right
+						DistanceLabel.TextTransparency = 1
+						DistanceLabel.Text = plr == Players.LocalPlayer and "--" or "..."
+						DistanceLabel.Parent = Row
+					end
+
+					TweenService:Create(Row, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.4}):Play()
+					TweenService:Create(Avatar, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+					TweenService:Create(NameLabel, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+					TweenService:Create(UserLabel, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+					if TeamLabel then TweenService:Create(TeamLabel, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play() end
+					if DistanceLabel then TweenService:Create(DistanceLabel, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play() end
+
+					return { Row = Row, TeamLabel = TeamLabel, DistanceLabel = DistanceLabel, NameLabel = NameLabel }
 				end
 
-				-- Helpers
-				local serverStart = os.clock()
-
-				local function format(int)
-					return string.format("%02i", int)
-				end
-
-				local function getServerAge()
-					local seconds = math.floor(os.clock() - serverStart)
-					local h = math.floor(seconds / 3600)
-					local m = math.floor((seconds % 3600) / 60)
-					local s = seconds % 60
-					if h > 0 then
-						return format(h).."h "..format(m).."m"
-					elseif m > 0 then
-						return format(m).."m "..format(s).."s"
-					else
-						return format(s).."s"
+				local function removeRow(plr)
+					local entry = PlayerListV.Rows[plr]
+					if entry then
+						TweenService:Create(entry.Row, TweenInfo.new(0.25, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+						task.wait(0.25)
+						entry.Row:Destroy()
+						PlayerListV.Rows[plr] = nil
 					end
 				end
 
-				local FPSBuffer = {}
-				local lastFPSUpdate = 0
-
-				local function getFPS()
-					local avg = 0
-					for _, v in ipairs(FPSBuffer) do avg += v end
-					avg = #FPSBuffer > 0 and (avg / #FPSBuffer) or 0
-					return math.floor(avg)
+				local function updateCount()
+					CountLabel.Text = #Players:GetPlayers() .. "/" .. Players.MaxPlayers
 				end
 
-				local heartbeatConn
-				heartbeatConn = RunService.Heartbeat:Connect(function(dt)
-					if dt > 0 then
-						table.insert(FPSBuffer, 1/dt)
-						if #FPSBuffer > 30 then
-							table.remove(FPSBuffer, 1)
+				local function refreshAll()
+					for _, plr in ipairs(Players:GetPlayers()) do
+						if not PlayerListV.Rows[plr] then
+							PlayerListV.Rows[plr] = buildRow(plr)
 						end
 					end
-				end)
+					updateCount()
+				end
 
-				local function refresh()
-					if Rows.FPS then
-						Rows.FPS.Text = tostring(getFPS())
-					end
-					if Rows.ServerAge then
-						Rows.ServerAge.Text = getServerAge()
-					end
-					if Rows.Region then
-						local ok, region = pcall(function()
-							return Localization:GetCountryRegionForPlayerAsync(Players.LocalPlayer)
-						end)
-						Rows.Region.Text = ok and region or "Unknown"
-					end
-					if Rows.Players then
-						Rows.Players.Text = #Players:GetPlayers() .. "/" .. Players.MaxPlayers
-					end
-					if Rows.Ping then
-						local ok, ping = pcall(function()
-							return math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
-						end)
-						Rows.Ping.Text = (ok and tostring(math.clamp(ping, 10, 999)) or "N/A") .. "ms"
+				local function updateDistances()
+					if not PlayerListSettings.ShowDistance then return end
+					for plr, entry in pairs(PlayerListV.Rows) do
+						if entry.DistanceLabel then
+							if plr == Players.LocalPlayer then
+								entry.DistanceLabel.Text = "--"
+							else
+								local dist = getDistance(plr)
+								entry.DistanceLabel.Text = dist and (math.floor(dist) .. " studs") or "N/A"
+							end
+						end
 					end
 				end
 
-				refresh()
+				local function updateTeams()
+					if not PlayerListSettings.ShowTeam then return end
+					for plr, entry in pairs(PlayerListV.Rows) do
+						if entry.TeamLabel then
+							entry.TeamLabel.Text = plr.Team and plr.Team.Name or "No Team"
+							entry.TeamLabel.TextColor3 = plr.Team and plr.Team.TeamColor.Color or Color3.fromRGB(150,150,150)
+						end
+					end
+				end
+
+				refreshAll()
+
+				local addedConn = Players.PlayerAdded:Connect(function(plr)
+					PlayerListV.Rows[plr] = buildRow(plr)
+					updateCount()
+				end)
+
+				local removingConn = Players.PlayerRemoving:Connect(function(plr)
+					removeRow(plr)
+					updateCount()
+				end)
 
 				local loopRunning = true
 				task.spawn(function()
 					while loopRunning do
-						task.wait(MonitorSettings.RefreshRate)
+						task.wait(PlayerListSettings.RefreshRate)
 						if loopRunning then
-							refresh()
+							updateDistances()
+							updateTeams()
 						end
 					end
 				end)
 
-				function MonitorV:Refresh()
-					refresh()
+				function PlayerListV:Refresh()
+					refreshAll()
+					updateDistances()
+					updateTeams()
 				end
 
-				function MonitorV:Set(NewSettings)
-					NewSettings = Kwargify({
-						Title = MonitorSettings.Title,
-						RefreshRate = MonitorSettings.RefreshRate,
-						Fields = MonitorSettings.Fields
-					}, NewSettings or {})
-
-					MonitorSettings = NewSettings
-					MonitorV.Settings = NewSettings
-					Title.Text = MonitorSettings.Title
-				end
-
-				function MonitorV:Destroy()
+				function PlayerListV:Destroy()
 					loopRunning = false
-					if heartbeatConn then heartbeatConn:Disconnect() end
+					addedConn:Disconnect()
+					removingConn:Disconnect()
+					for plr, _ in pairs(PlayerListV.Rows) do
+						removeRow(plr)
+					end
 					Holder.Visible = false
 					Holder:Destroy()
 				end
 
-				return MonitorV
+				return PlayerListV
+			end
+			-- Object Viewer (Viewport giratório)
+			function Section:CreateObjectViewer(ViewerSettings)
+				TabPage.Position = UDim2.new(0,0,0,28)
+
+				ViewerSettings = Kwargify({
+					Title = "Object Viewer",
+					Model = nil,
+					Height = 180,
+					RotationSpeed = 0.5, -- graus por frame, aproximadamente
+					Background = Color3.fromRGB(20, 19, 24),
+					AutoRotate = true
+				}, ViewerSettings or {})
+
+				local ViewerV = { Settings = ViewerSettings }
+
+				local hasTitle = ViewerSettings.Title ~= nil and ViewerSettings.Title ~= ""
+
+				local Holder = Instance.new("Frame")
+				Holder.Name = (ViewerSettings.Title or "Object Viewer") .. " - ObjectViewer"
+				Holder.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+				Holder.BackgroundTransparency = 1
+				Holder.Size = UDim2.new(1, -25, 0, ViewerSettings.Height + (hasTitle and 30 or 10))
+				Holder.Parent = TabPage
+
+				local UICorner = Instance.new("UICorner", Holder)
+				UICorner.CornerRadius = UDim.new(0, 6)
+
+				local UIStroke = Instance.new("UIStroke", Holder)
+				UIStroke.Color = Color3.fromRGB(64,61,76)
+				UIStroke.Transparency = 1
+
+				local Title
+				if hasTitle then
+					Title = Instance.new("TextLabel")
+					Title.BackgroundTransparency = 1
+					Title.Position = UDim2.new(0, 14, 0, 6)
+					Title.Size = UDim2.new(1, -28, 0, 16)
+					Title.Font = Enum.Font.GothamMedium
+					Title.TextSize = 13
+					Title.TextColor3 = Color3.fromRGB(240,240,240)
+					Title.TextXAlignment = Enum.TextXAlignment.Left
+					Title.TextTransparency = 1
+					Title.Text = ViewerSettings.Title
+					Title.Parent = Holder
+				end
+
+				local Viewport = Instance.new("ViewportFrame")
+				Viewport.BackgroundColor3 = ViewerSettings.Background
+				Viewport.BackgroundTransparency = 1
+				Viewport.Position = UDim2.new(0, 6, 0, hasTitle and 28 or 6)
+				Viewport.Size = UDim2.new(1, -12, 0, ViewerSettings.Height - (hasTitle and 4 or 0))
+				Viewport.LightDirection = Vector3.new(-0.5, -0.6, 0.3)
+				Viewport.Ambient = Color3.fromRGB(140,140,140)
+				Viewport.Parent = Holder
+
+				local ViewportCorner = Instance.new("UICorner", Viewport)
+				ViewportCorner.CornerRadius = UDim.new(0, 5)
+
+				local WorldModel = Instance.new("WorldModel")
+				WorldModel.Parent = Viewport
+
+				local ViewCamera = Instance.new("Camera")
+				ViewCamera.FieldOfView = 50
+				ViewCamera.Parent = Viewport
+				Viewport.CurrentCamera = ViewCamera
+
+				TweenService:Create(Holder, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+				TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+				if Title then TweenService:Create(Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play() end
+				TweenService:Create(Viewport, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.05}):Play()
+
+				local currentModel = nil
+				local modelCFrame, modelSize
+				local rotationAngle = 0
+				local heartbeatConn
+				local dragRotating = false
+				local manualOffset = 0
+				local lastMouseX = 0
+
+				local function getBounds(model)
+					if model:IsA("Model") then
+						local ok, cf, size = pcall(function() return model:GetBoundingBox() end)
+						if ok then return cf, size end
+					elseif model:IsA("BasePart") then
+						return model.CFrame, model.Size
+					end
+					return CFrame.new(), Vector3.new(4,4,4)
+				end
+
+				local function updateCameraPosition()
+					if not modelCFrame or not modelSize then return end
+
+					local radius = math.max(modelSize.X, modelSize.Y, modelSize.Z) * 1.4
+					local angle = math.rad(rotationAngle + manualOffset)
+
+					local camPos = modelCFrame.Position + Vector3.new(
+						math.sin(angle) * radius,
+						modelSize.Y * 0.25,
+						math.cos(angle) * radius
+					)
+
+					ViewCamera.CFrame = CFrame.new(camPos, modelCFrame.Position)
+				end
+
+				local function LoadModel(modelToLoad)
+					if currentModel then
+						currentModel:Destroy()
+						currentModel = nil
+					end
+
+					if not modelToLoad then return end
+
+					local ok, clone = pcall(function() return modelToLoad:Clone() end)
+					if not ok or not clone then
+						warn("Poltergeist Interface Suite | ObjectViewer: failed to clone model")
+						return
+					end
+
+					currentModel = clone
+					currentModel.Parent = WorldModel
+
+					if currentModel:IsA("Model") and not currentModel.PrimaryPart then
+						local firstPart = currentModel:FindFirstChildWhichIsA("BasePart", true)
+						if firstPart then
+							currentModel.PrimaryPart = firstPart
+						end
+					end
+
+					-- desativa scripts/sons clonados pra não rodar lógica duplicada
+					for _, descendant in ipairs(currentModel:GetDescendants()) do
+						if descendant:IsA("Script") or descendant:IsA("LocalScript") then
+							descendant.Enabled = false
+						elseif descendant:IsA("Sound") then
+							descendant:Stop()
+						elseif descendant:IsA("Humanoid") then
+							descendant.WalkSpeed = 0
+							descendant.JumpPower = 0
+						end
+					end
+
+					modelCFrame, modelSize = getBounds(currentModel)
+					rotationAngle = 0
+					manualOffset = 0
+					updateCameraPosition()
+				end
+
+				if ViewerSettings.Model then
+					LoadModel(ViewerSettings.Model)
+				end
+
+				heartbeatConn = RunService.Heartbeat:Connect(function(dt)
+					if currentModel and ViewerSettings.AutoRotate and not dragRotating then
+						rotationAngle = (rotationAngle + ViewerSettings.RotationSpeed) % 360
+						updateCameraPosition()
+					end
+				end)
+
+				-- arrastar pra girar manualmente
+				Viewport.InputBegan:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						dragRotating = true
+						lastMouseX = input.Position.X
+					end
+				end)
+
+				UserInputService.InputChanged:Connect(function(input)
+					if dragRotating and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+						local delta = input.Position.X - lastMouseX
+						manualOffset = manualOffset + delta * 0.5
+						lastMouseX = input.Position.X
+						updateCameraPosition()
+					end
+				end)
+
+				UserInputService.InputEnded:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+						dragRotating = false
+						rotationAngle = rotationAngle + manualOffset
+						manualOffset = 0
+					end
+				end)
+
+				function ViewerV:SetModel(newModel)
+					ViewerSettings.Model = newModel
+					LoadModel(newModel)
+				end
+
+				function ViewerV:SetAutoRotate(state)
+					ViewerSettings.AutoRotate = state
+				end
+
+				function ViewerV:SetRotationSpeed(speed)
+					ViewerSettings.RotationSpeed = speed
+				end
+
+				function ViewerV:Destroy()
+					if heartbeatConn then heartbeatConn:Disconnect() end
+					if currentModel then currentModel:Destroy() end
+					Holder.Visible = false
+					Holder:Destroy()
+				end
+
+				return ViewerV
 			end
 			-- Bind
 			function Section:CreateBind(BindSettings, Flag)
