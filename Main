@@ -23,7 +23,7 @@ Deity/dp4pv/x64x70 | Certain Scripting and Testing ig
 
 ]]
 
-local Release = "v1.1.6"
+local Release = "v1.0.6"
 
 local Poltergeist = {
 	Folder = "Poltergeist",
@@ -2298,12 +2298,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 	for i,v in pairs(Main.Controls:GetChildren()) do
 		v.Visible = false
 	end
-	
-	local PluginsButton = Main.Controls.ToggleSize:Clone()
-	PluginsButton.Name = "Plugins"
-	PluginsButton.Parent = Main.Controls
-	PluginsButton.ImageLabel.Image = GetIcon("extension", "Material")
-	
+
 	Main:GetPropertyChangedSignal("Position"):Connect(function()
 		Main.Parent.ShadowHolder.Position = Main.Position
 	end)
@@ -7191,212 +7186,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 	Main.Controls.Theme["MouseLeave"]:Connect(function()
 		tween(Main.Controls.Theme.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)})
 	end)	
-	
-	-- ================= Painel "Install Plugins" (visual apenas) =================
 
-	local PluginsPanel = Instance.new("Frame")
-	PluginsPanel.Name = "PluginsPanel"
-	PluginsPanel.BackgroundColor3 = Color3.fromRGB(26, 24, 31)
-	PluginsPanel.BackgroundTransparency = 1
-	PluginsPanel.BorderSizePixel = 0
-	PluginsPanel.AnchorPoint = Vector2.new(0.5, 0.5)
-	PluginsPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
-	PluginsPanel.Size = UDim2.new(0, 340, 0, 0)
-	PluginsPanel.AutomaticSize = Enum.AutomaticSize.Y
-	PluginsPanel.ZIndex = 50
-	PluginsPanel.Visible = false
-	PluginsPanel.Parent = Main
 
-	local PPCorner = Instance.new("UICorner", PluginsPanel)
-	PPCorner.CornerRadius = UDim.new(0, 8)
-
-	local PPStroke = Instance.new("UIStroke", PluginsPanel)
-	PPStroke.Color = Color3.fromRGB(64, 61, 76)
-	PPStroke.Transparency = 1
-
-	local PPPadding = Instance.new("UIPadding", PluginsPanel)
-	PPPadding.PaddingTop = UDim.new(0, 14)
-	PPPadding.PaddingBottom = UDim.new(0, 14)
-	PPPadding.PaddingLeft = UDim.new(0, 16)
-	PPPadding.PaddingRight = UDim.new(0, 16)
-
-	local PPLayout = Instance.new("UIListLayout", PluginsPanel)
-	PPLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	PPLayout.Padding = UDim.new(0, 10)
-
-	-- Cabeçalho
-	local PPHeader = Instance.new("Frame")
-	PPHeader.BackgroundTransparency = 1
-	PPHeader.Size = UDim2.new(1, 0, 0, 22)
-	PPHeader.LayoutOrder = 0
-	PPHeader.ZIndex = 51
-	PPHeader.Parent = PluginsPanel
-
-	local PPTitle = Instance.new("TextLabel")
-	PPTitle.BackgroundTransparency = 1
-	PPTitle.Size = UDim2.new(1, -24, 1, 0)
-	PPTitle.Font = Enum.Font.GothamBold
-	PPTitle.TextSize = 15
-	PPTitle.TextColor3 = Color3.fromRGB(240, 240, 240)
-	PPTitle.TextXAlignment = Enum.TextXAlignment.Left
-	PPTitle.Text = "Install Plugins"
-	PPTitle.TextTransparency = 1
-	PPTitle.ZIndex = 51
-	PPTitle.Parent = PPHeader
-
-	local PPClose = Instance.new("TextButton")
-	PPClose.BackgroundTransparency = 1
-	PPClose.AnchorPoint = Vector2.new(1, 0.5)
-	PPClose.Position = UDim2.new(1, 0, 0.5, 0)
-	PPClose.Size = UDim2.new(0, 20, 0, 20)
-	PPClose.Font = Enum.Font.GothamBold
-	PPClose.TextSize = 14
-	PPClose.Text = "x"
-	PPClose.TextColor3 = Color3.fromRGB(200, 200, 200)
-	PPClose.TextTransparency = 1
-	PPClose.ZIndex = 51
-	PPClose.Parent = PPHeader
-
-	-- Lista de plugins (só texto, nada é instalado de verdade)
-	local PluginList = {
-		{
-			Name = "Workspace Manager",
-			Description = "See all in the explorer.",
-			Icon = "account_tree"
-		},
-		-- adicione outros plugins aqui depois
-	}
-
-	local function BuildPluginRow(plugin, order)
-		local Row = Instance.new("Frame")
-		Row.Name = plugin.Name
-		Row.BackgroundColor3 = Color3.fromRGB(40, 38, 47)
-		Row.BackgroundTransparency = 1
-		Row.Size = UDim2.new(1, 0, 0, 54)
-		Row.LayoutOrder = order
-		Row.ZIndex = 51
-		Row.Parent = PluginsPanel
-
-		Instance.new("UICorner", Row).CornerRadius = UDim.new(0, 6)
-
-		local RowStroke = Instance.new("UIStroke", Row)
-		RowStroke.Color = Color3.fromRGB(64, 61, 76)
-		RowStroke.Transparency = 1
-
-		local Icon = Instance.new("ImageLabel")
-		Icon.BackgroundTransparency = 1
-		Icon.Position = UDim2.new(0, 10, 0.5, -12)
-		Icon.Size = UDim2.new(0, 24, 0, 24)
-		Icon.Image = GetIcon(plugin.Icon or "extension", "Material")
-		Icon.ImageColor3 = Color3.fromRGB(220, 220, 220)
-		Icon.ImageTransparency = 1
-		Icon.ZIndex = 52
-		Icon.Parent = Row
-
-		local Name = Instance.new("TextLabel")
-		Name.BackgroundTransparency = 1
-		Name.Position = UDim2.new(0, 44, 0, 8)
-		Name.Size = UDim2.new(1, -110, 0, 16)
-		Name.Font = Enum.Font.GothamMedium
-		Name.TextSize = 13
-		Name.TextColor3 = Color3.fromRGB(235, 235, 235)
-		Name.TextXAlignment = Enum.TextXAlignment.Left
-		Name.Text = plugin.Name
-		Name.TextTransparency = 1
-		Name.ZIndex = 52
-		Name.Parent = Row
-
-		local Desc = Instance.new("TextLabel")
-		Desc.BackgroundTransparency = 1
-		Desc.Position = UDim2.new(0, 44, 0, 26)
-		Desc.Size = UDim2.new(1, -110, 0, 22)
-		Desc.Font = Enum.Font.Gotham
-		Desc.TextSize = 11
-		Desc.TextColor3 = Color3.fromRGB(160, 160, 160)
-		Desc.TextXAlignment = Enum.TextXAlignment.Left
-		Desc.TextWrapped = true
-		Desc.Text = plugin.Description
-		Desc.TextTransparency = 1
-		Desc.ZIndex = 52
-		Desc.Parent = Row
-
-		local InstallBtn = Instance.new("TextButton")
-		InstallBtn.AnchorPoint = Vector2.new(1, 0.5)
-		InstallBtn.Position = UDim2.new(1, -8, 0.5, 0)
-		InstallBtn.Size = UDim2.new(0, 60, 0, 24)
-		InstallBtn.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
-		InstallBtn.BackgroundTransparency = 1
-		InstallBtn.Font = Enum.Font.GothamMedium
-		InstallBtn.TextSize = 11
-		InstallBtn.TextColor3 = Color3.fromRGB(230, 230, 230)
-		InstallBtn.Text = "Install"
-		InstallBtn.AutoButtonColor = false
-		InstallBtn.ZIndex = 52
-		InstallBtn.Parent = Row
-
-		Instance.new("UICorner", InstallBtn).CornerRadius = UDim.new(0, 5)
-		local InstallStroke = Instance.new("UIStroke", InstallBtn)
-		InstallStroke.Color = Color3.fromRGB(87, 84, 104)
-		InstallStroke.Transparency = 1
-
-		local installed = false
-		InstallBtn.MouseButton1Click:Connect(function()
-			installed = not installed
-			if installed then
-				InstallBtn.Text = "Installed"
-				tween(InstallBtn, {BackgroundTransparency = 0.5})
-				Poltergeist:Notification({
-					Title = "Plugins",
-					Content = plugin.Name .. " has been installed.",
-					Icon = "extension"
-				})
-			else
-				InstallBtn.Text = "Install"
-				tween(InstallBtn, {BackgroundTransparency = 1})
-			end
-		end)
-
-		TweenService:Create(Row, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
-		TweenService:Create(RowStroke, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-		TweenService:Create(Icon, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-		TweenService:Create(Name, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-		TweenService:Create(Desc, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-		TweenService:Create(InstallStroke, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {Transparency = 0.3}):Play()
-	end
-
-	for i, plugin in ipairs(PluginList) do
-		BuildPluginRow(plugin, i)
-	end
-
-	local panelOpen = false
-	local function TogglePluginsPanel()
-		panelOpen = not panelOpen
-		if panelOpen then
-			PluginsPanel.Visible = true
-			tween(PluginsPanel, {BackgroundTransparency = 0.15})
-			tween(PPStroke, {Transparency = 0.5})
-			tween(PPTitle, {TextTransparency = 0})
-			tween(PPClose, {TextTransparency = 0})
-		else
-			tween(PluginsPanel, {BackgroundTransparency = 1})
-			tween(PPStroke, {Transparency = 1})
-			tween(PPTitle, {TextTransparency = 1})
-			tween(PPClose, {TextTransparency = 1})
-			task.wait(0.32)
-			if not panelOpen then PluginsPanel.Visible = false end
-		end
-	end
-
-	PluginsButton.ImageLabel.MouseButton1Click:Connect(TogglePluginsPanel)
-	PPClose.MouseButton1Click:Connect(TogglePluginsPanel)
-
-	PluginsButton["MouseEnter"]:Connect(function()
-		tween(PluginsButton.ImageLabel, {ImageColor3 = Color3.new(1,1,1)})
-	end)
-	PluginsButton["MouseLeave"]:Connect(function()
-		tween(PluginsButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)})
-	end)
-	
 	PoltergeistUI.MobileSupport.Interact.MouseButton1Click:Connect(function()
 		Unhide(Main, Window.CurrentTab)
 		dragBar.Visible = true
