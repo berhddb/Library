@@ -23,7 +23,7 @@ Deity/dp4pv/x64x70 | Certain Scripting and Testing ig
 
 ]]
 
-local Release = "v1.1.6"
+local Release = "v1.2.7"
 
 local Poltergeist = {
 	Folder = "Poltergeist",
@@ -2535,7 +2535,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 	for i,v in pairs(Main.Controls:GetChildren()) do
 		v.Visible = false
 	end
-	
+
 	local PluginsButton = Main.Controls.ToggleSize:Clone()
 	PluginsButton.Name = "Plugins"
 	PluginsButton.Parent = Main.Controls
@@ -7457,7 +7457,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		Window.State = true
 		PoltergeistUI.MobileSupport.Visible = false
 	end)
-	
+
 	-- ================= Plugins layer =================
 
 	local PluginsPanel = nil
@@ -7476,48 +7476,94 @@ function Poltergeist:CreateWindow(WindowSettings)
 	}
 
 	local function BuildPluginRow(plugin, order)
-		local Row = Elements.Template.ButtonDesc:Clone()
+		local Row = Instance.new("Frame")
 		Row.Name = plugin.Name
+		Row.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+		Row.BackgroundTransparency = 1
+		Row.BorderSizePixel = 0
+		Row.Size = UDim2.new(1, 0, 0, 56)
 		Row.LayoutOrder = order
-		Row.Visible = true
 		Row.Parent = PluginsPanel
 
-		Row.Title.Text = plugin.Name
-		Row.Desc.Text = plugin.Description
+		Instance.new("UICorner", Row).CornerRadius = UDim.new(0, 6)
+		local RowStroke = Instance.new("UIStroke", Row)
+		RowStroke.Color = Color3.fromRGB(64, 61, 76)
+		RowStroke.Thickness = 1
+		RowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		RowStroke.Transparency = 1
 
-		Row.UIStroke.Transparency = 1
-		Row.Title.TextTransparency = 1
-		Row.Desc.TextTransparency = 1
-		Row.BackgroundTransparency = 1
+		local IconHolder = Instance.new("Frame")
+		IconHolder.BackgroundColor3 = Color3.fromRGB(40, 38, 47)
+		IconHolder.BorderSizePixel = 0
+		IconHolder.Position = UDim2.new(0, 10, 0.5, -16)
+		IconHolder.Size = UDim2.new(0, 32, 0, 32)
+		IconHolder.BackgroundTransparency = 1
+		IconHolder.Parent = Row
+		Instance.new("UICorner", IconHolder).CornerRadius = UDim.new(0, 6)
+
+		local Icon = Instance.new("ImageLabel")
+		Icon.BackgroundTransparency = 1
+		Icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		Icon.Position = UDim2.new(0.5, 0, 0.5, 0)
+		Icon.Size = UDim2.new(0, 18, 0, 18)
+		Icon.Image = GetIcon(plugin.Icon or "extension", "Material")
+		Icon.ImageColor3 = Color3.fromRGB(224, 138, 175)
+		Icon.ImageTransparency = 1
+		Icon.Parent = IconHolder
+
+		local Name = Instance.new("TextLabel")
+		Name.BackgroundTransparency = 1
+		Name.Position = UDim2.new(0, 54, 0, 10)
+		Name.Size = UDim2.new(1, -130, 0, 16)
+		Name.Font = Enum.Font.GothamMedium
+		Name.TextSize = 13
+		Name.TextColor3 = Color3.fromRGB(235, 235, 235)
+		Name.TextXAlignment = Enum.TextXAlignment.Left
+		Name.Text = plugin.Name
+		Name.TextTransparency = 1
+		Name.Parent = Row
+
+		local Desc = Instance.new("TextLabel")
+		Desc.BackgroundTransparency = 1
+		Desc.Position = UDim2.new(0, 54, 0, 28)
+		Desc.Size = UDim2.new(1, -130, 0, 16)
+		Desc.Font = Enum.Font.Gotham
+		Desc.TextSize = 11
+		Desc.TextColor3 = Color3.fromRGB(150, 150, 150)
+		Desc.TextXAlignment = Enum.TextXAlignment.Left
+		Desc.Text = plugin.Description
+		Desc.TextTransparency = 1
+		Desc.Parent = Row
+
+		local StatusBtn = Instance.new("TextButton")
+		StatusBtn.AnchorPoint = Vector2.new(1, 0.5)
+		StatusBtn.Position = UDim2.new(1, -12, 0.5, 0)
+		StatusBtn.Size = UDim2.new(0, 66, 0, 24)
+		StatusBtn.BackgroundColor3 = Color3.fromRGB(224, 138, 175)
+		StatusBtn.BackgroundTransparency = 1
+		StatusBtn.Font = Enum.Font.GothamBold
+		StatusBtn.TextSize = 10
+		StatusBtn.TextColor3 = Color3.fromRGB(20, 18, 24)
+		StatusBtn.Text = "INSTALL"
+		StatusBtn.AutoButtonColor = false
+		StatusBtn.BorderSizePixel = 0
+		StatusBtn.Parent = Row
+		Instance.new("UICorner", StatusBtn).CornerRadius = UDim.new(0, 5)
 
 		TweenService:Create(Row, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
-		TweenService:Create(Row.UIStroke, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-		TweenService:Create(Row.Title, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-		TweenService:Create(Row.Desc, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-
-		local StatusLabel = Instance.new("TextLabel")
-		StatusLabel.BackgroundTransparency = 1
-		StatusLabel.AnchorPoint = Vector2.new(1, 0)
-		StatusLabel.Position = UDim2.new(1, -12, 0, 8)
-		StatusLabel.Size = UDim2.new(0, 70, 0, 14)
-		StatusLabel.Font = Enum.Font.GothamMedium
-		StatusLabel.TextSize = 10
-		StatusLabel.TextXAlignment = Enum.TextXAlignment.Right
-		StatusLabel.TextTransparency = 1
-		StatusLabel.Text = "INSTALL"
-		StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-		StatusLabel.Parent = Row
-
-		TweenService:Create(StatusLabel, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+		TweenService:Create(RowStroke, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+		TweenService:Create(Icon, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+		TweenService:Create(Name, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+		TweenService:Create(Desc, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
+		TweenService:Create(StatusBtn, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
 
 		local installed = false
-		Row.Interact.MouseButton1Click:Connect(function()
-			if installed then return end -- no uninstall, as requested
-
+		StatusBtn.MouseButton1Click:Connect(function()
+			if installed then return end
 			installed = true
-			StatusLabel.Text = "INSTALLED"
-			tween(StatusLabel, {TextColor3 = Color3.fromRGB(224, 138, 175)})
-			tween(Row.UIStroke, {Color = Color3.fromRGB(224, 138, 175), Transparency = 0.3})
+			StatusBtn.Text = "INSTALLED"
+			tween(StatusBtn, {BackgroundColor3 = Color3.fromRGB(46, 204, 113)})
+			tween(RowStroke, {Color = Color3.fromRGB(46, 204, 113), Transparency = 0.3})
 
 			if plugin.OnInstall then plugin.OnInstall() end
 
@@ -7526,13 +7572,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Content = plugin.Name .. " has been installed.",
 				Icon = plugin.Icon or "extension"
 			})
-		end)
-
-		Row.MouseEnter:Connect(function()
-			if not installed then tween(Row.UIStroke, {Color = Color3.fromRGB(87, 84, 104)}) end
-		end)
-		Row.MouseLeave:Connect(function()
-			if not installed then tween(Row.UIStroke, {Color = Color3.fromRGB(64, 61, 76)}) end
 		end)
 	end
 
@@ -7624,7 +7663,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 	PluginsButton["MouseLeave"]:Connect(function()
 		tween(PluginsButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195, 195, 195)})
 	end)
-	
+
 	return Window
 end
 
