@@ -36,6 +36,7 @@ local Poltergeist = {
 }
 
 local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
@@ -1607,6 +1608,58 @@ local function GetIcon(icon, source)
 	end
 end
 
+local function ApplyTagBadges(Element, TagsList)
+	if not TagsList or #TagsList == 0 then return end
+
+	local BadgeHolder = Instance.new("Frame")
+	BadgeHolder.Name = "TagBadges"
+	BadgeHolder.BackgroundTransparency = 1
+	BadgeHolder.AnchorPoint = Vector2.new(1, 0)
+	BadgeHolder.Position = UDim2.new(1, -8, 0, 4)
+	BadgeHolder.Size = UDim2.new(0, 0, 0, 14)
+	BadgeHolder.AutomaticSize = Enum.AutomaticSize.X
+	BadgeHolder.ZIndex = 5
+	BadgeHolder.Parent = Element
+
+	local BadgeLayout = Instance.new("UIListLayout", BadgeHolder)
+	BadgeLayout.FillDirection = Enum.FillDirection.Horizontal
+	BadgeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	BadgeLayout.Padding = UDim.new(0, 4)
+
+	for _, tagObj in ipairs(TagsList) do
+		if tagObj and tagObj.Name then
+			local Badge = Instance.new("TextLabel")
+			Badge.BackgroundColor3 = Color3.fromRGB(64, 61, 76)
+			Badge.BorderSizePixel = 0
+			Badge.AutomaticSize = Enum.AutomaticSize.X
+			Badge.Size = UDim2.new(0, 0, 0, 14)
+			Badge.Font = Enum.Font.GothamMedium
+			Badge.TextSize = 9
+			Badge.TextColor3 = Color3.fromRGB(210, 210, 210)
+			Badge.Text = tagObj.Name
+			Badge.ZIndex = 6
+			Badge.Parent = BadgeHolder
+
+			local BadgePadding = Instance.new("UIPadding", Badge)
+			BadgePadding.PaddingLeft = UDim.new(0, 5)
+			BadgePadding.PaddingRight = UDim.new(0, 5)
+
+			Instance.new("UICorner", Badge).CornerRadius = UDim.new(1, 0)
+		end
+	end
+end
+
+function Tab:_RegisterTaggedElement(Element, TagsList)
+	if not TagsList or #TagsList == 0 then return end
+	local map = {}
+	for _, tagObj in ipairs(TagsList) do
+		if tagObj and tagObj.Id then map[tagObj.Id] = true end
+	end
+	Tab.TaggedElements[Element] = map
+	ApplyTagBadges(Element, TagsList)
+	Tab:_ApplyTagFilter()
+end
+
 local function RemoveTable(tablre, value)
 	for i,v in pairs(tablre) do
 		if tostring(v) == tostring(value) then
@@ -2171,6 +2224,18 @@ function Poltergeist:Notification(data) -- action e.g open messages
 	end)
 end
 
+
+Poltergeist.SearchIndex = Poltergeist.SearchIndex or {}
+
+local function RegisterSearchable(Element, Title, OriginalParent, OriginalLayoutOrder)
+	table.insert(Poltergeist.SearchIndex, {
+		Element = Element,
+		Title = Title,
+		OriginalParent = OriginalParent,
+		OriginalLayoutOrder = OriginalLayoutOrder
+	})
+end
+
 Poltergeist.DetachedWindows = Poltergeist.DetachedWindows or {}
 
 local function GetInstancePath(Root, Target)
@@ -2191,35 +2256,33 @@ local function GetByPath(Root, Path)
 	return current
 end
 
-function Poltergeist:MakeDetachable(Element, Title, Icon)
+function Poltergeist:MakeDetachable(Element, Title, Icon, DirectCallback)
 	local detached = false
 
-	local function CreateFloatWindow()
-		if #Poltergeist.DetachedWindows >= 3 then
-			Poltergeist:Notification({
-				Title = "Detach Limit Reached",
-				Content = "You can only have 3 detached windows open at once.",
-				Icon = "dangerous"
-			})
-			return
-		end
-
+	local function CreateFloatWindow(SpawnX, SpawnY)
 		local AbsSize = Element.AbsoluteSize
 
 		local floatWindow = Instance.new("Frame")
 		floatWindow.Name = "Detached - " .. Title
 		floatWindow.BackgroundColor3 = Color3.fromRGB(28, 26, 33)
 		floatWindow.BorderSizePixel = 0
-		floatWindow.AnchorPoint = Vector2.new(0.5, 0.5)
-		floatWindow.Position = UDim2.new(0.5, math.random(-60, 60), 0.5, math.random(-60, 60))
+		floatWindow.AnchorPoint = Vector2.new(0, 0)
 		floatWindow.Size = UDim2.new(0, math.max(AbsSize.X + 24, 200), 0, AbsSize.Y + 50)
 		floatWindow.ZIndex = 700
 		floatWindow.ClipsDescendants = true
 		floatWindow.Parent = PoltergeistUI
 
+		-- Clamp pra não nascer fora da tela
+		local viewport = Camera.ViewportSize
+		local clampedX = math.clamp(SpawnX, 0, viewport.X - floatWindow.Size.X.Offset)
+		local clampedY = math.clamp(SpawnY, 0, viewport.Y - floatWindow.Size.Y.Offset)
+		floatWindow.Position = UDim2.fromOffset(clampedX, clampedY)
+
 		Instance.new("UICorner", floatWindow).CornerRadius = UDim.new(0, 6)
 		local FWStroke = Instance.new("UIStroke", floatWindow)
 		FWStroke.Color = Color3.fromRGB(64, 61, 76)
+		FWStroke.Thickness = 1
+		FWStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		FWStroke.Transparency = 0.5
 
 		local Header = Instance.new("Frame")
@@ -2287,48 +2350,39 @@ function Poltergeist:MakeDetachable(Element, Title, Icon)
 		Body.Size = UDim2.new(0, AbsSize.X, 0, AbsSize.Y)
 		Body.Parent = floatWindow
 
-		-- CLONE (o original fica intacto no hub, nunca é movido)
 		local Clone = Element:Clone()
 		Clone.Parent = Body
 		Clone.Position = UDim2.new(0, 0, 0, 0)
 		Clone.Size = UDim2.new(0, AbsSize.X, 0, AbsSize.Y)
 		Clone.Visible = true
 
-		-- Repassa cliques/inputs do clone pro elemento original (mesma callback real dispara)
 		for _, desc in ipairs(Clone:GetDescendants()) do
 			local path = GetInstancePath(Clone, desc)
 			local originalDesc = GetByPath(Element, path)
 			if originalDesc then
 				if desc:IsA("GuiButton") then
 					desc.MouseButton1Click:Connect(function()
-						if firesignal then
-							pcall(firesignal, originalDesc.MouseButton1Click)
-						end
-					end)
-					desc.MouseButton1Down:Connect(function()
-						if firesignal then
-							pcall(firesignal, originalDesc.MouseButton1Down)
-						end
-					end)
-					desc.InputEnded:Connect(function(inp)
-						if firesignal and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
-							pcall(firesignal, originalDesc.InputEnded, inp)
+						if DirectCallback then
+							-- Só chama a callback direta; NÃO tenta reenviar o sinal original
+							-- (fazer as duas coisas causava o bug do toggle "não funcionar")
+							pcall(DirectCallback)
+						else
+							FireOriginalSignal(originalDesc.MouseButton1Click)
 						end
 					end)
 				elseif desc:IsA("TextBox") then
 					desc:GetPropertyChangedSignal("Text"):Connect(function()
-						originalDesc.Text = desc.Text
+						if originalDesc.Text ~= desc.Text then
+							originalDesc.Text = desc.Text
+						end
 					end)
 					desc.FocusLost:Connect(function(enter)
-						if firesignal then
-							pcall(firesignal, originalDesc.FocusLost, enter)
-						end
+						FireOriginalSignal(originalDesc.FocusLost, enter)
 					end)
 				end
 			end
 		end
 
-		-- Espelha visualmente o original -> clone continuamente (fonte da verdade é sempre o original)
 		local mirrorConn
 		mirrorConn = RunService.Heartbeat:Connect(function()
 			if not Element.Parent or not floatWindow.Parent then
@@ -2391,6 +2445,25 @@ function Poltergeist:MakeDetachable(Element, Title, Icon)
 		table.insert(Poltergeist.DetachedWindows, floatWindow)
 		detached = true
 	end
+
+	UserInputService.InputBegan:Connect(function(Input, GameProcessedEvent)
+		if Input.UserInputType ~= Enum.UserInputType.MouseButton2 then return end
+		if detached then return end
+		if not Element or not Element.Parent then return end
+
+		local MousePos = UserInputService:GetMouseLocation()
+		local PlayerGui = Player:FindFirstChildOfClass("PlayerGui")
+		if not PlayerGui then return end
+
+		local hits = PlayerGui:GetGuiObjectsAtPosition(MousePos.X, MousePos.Y)
+		local topmost = hits[1]
+		if not topmost then return end
+
+		if topmost == Element or topmost:IsDescendantOf(Element) then
+			local inset = GuiService:GetGuiInset()
+			CreateFloatWindow(MousePos.X - inset.X, MousePos.Y - inset.Y)
+		end
+	end)
 
 	UserInputService.InputBegan:Connect(function(Input, GameProcessedEvent)
 		if Input.UserInputType ~= Enum.UserInputType.MouseButton2 then return end
@@ -2507,7 +2580,28 @@ function Poltergeist:CreateWindow(WindowSettings)
 	local Passthrough = false
 
 	local Window = { Bind = Enum.KeyCode.K, CurrentTab = nil, State = true, Size = false, Settings = nil }
+	
+	local SettingsButton = Main.Controls.ToggleSize:Clone()
+	SettingsButton.Name = "SettingsButton"
+	SettingsButton.Parent = Main.Controls
+	SettingsButton.ImageLabel.Image = GetIcon("settings", "Material")
+	SettingsButton.Position = UDim2.new(
+		SearchButton.Position.X.Scale,
+		SearchButton.Position.X.Offset - (SearchButton.Size.X.Offset + 8),
+		SearchButton.Position.Y.Scale,
+		SearchButton.Position.Y.Offset
+	)
 
+	SettingsButton.ImageLabel.MouseButton1Click:Connect(function()
+		if Window.Settings then
+			Window.Settings:Activate()
+		else
+			Poltergeist:Notification({Title = "Settings", Content = "No settings tab has been created yet. Call Window:CreateSettings() first.", Icon = "dangerous"})
+		end
+	end)
+	SettingsButton["MouseEnter"]:Connect(function() tween(SettingsButton.ImageLabel, {ImageColor3 = Color3.new(1,1,1)}) end)
+	SettingsButton["MouseLeave"]:Connect(function() tween(SettingsButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)}) end)
+	
 	Main.Title.Title.Text = WindowSettings.Name
 	Main.Title.subtitle.Text = WindowSettings.Subtitle
 	Main.Logo.Image = "rbxassetid://" .. WindowSettings.LogoID
@@ -2536,6 +2630,116 @@ function Poltergeist:CreateWindow(WindowSettings)
 		v.Visible = false
 	end
 
+	local SearchButton = Main.Controls.ToggleSize:Clone()
+	SearchButton.Name = "Search"
+	SearchButton.Parent = Main.Controls
+	SearchButton.ImageLabel.Image = GetIcon("search", "Material")
+	SearchButton.Position = UDim2.new(
+		PluginsButton.Position.X.Scale,
+		PluginsButton.Position.X.Offset - (PluginsButton.Size.X.Offset + 8),
+		PluginsButton.Position.Y.Scale,
+		PluginsButton.Position.Y.Offset
+	)
+
+	local SearchBar = Instance.new("Frame")
+	SearchBar.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+	SearchBar.BorderSizePixel = 0
+	SearchBar.AnchorPoint = Vector2.new(0.5, 0)
+	SearchBar.Position = UDim2.new(0.5, 0, 0, 44)
+	SearchBar.Size = UDim2.new(0, 240, 0, 30)
+	SearchBar.ZIndex = 300
+	SearchBar.Visible = false
+	SearchBar.Parent = Main
+	Instance.new("UICorner", SearchBar).CornerRadius = UDim.new(0, 6)
+	local SearchStroke = Instance.new("UIStroke", SearchBar)
+	SearchStroke.Color = Color3.fromRGB(64, 61, 76)
+	SearchStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+	local SearchBox = Instance.new("TextBox")
+	SearchBox.BackgroundTransparency = 1
+	SearchBox.Position = UDim2.new(0, 12, 0, 0)
+	SearchBox.Size = UDim2.new(1, -24, 1, 0)
+	SearchBox.Font = Enum.Font.Gotham
+	SearchBox.TextSize = 13
+	SearchBox.TextColor3 = Color3.fromRGB(230, 230, 230)
+	SearchBox.PlaceholderText = "Search..."
+	SearchBox.Text = ""
+	SearchBox.TextXAlignment = Enum.TextXAlignment.Left
+	SearchBox.ClearTextOnFocus = false
+	SearchBox.ZIndex = 301
+	SearchBox.Parent = SearchBar
+
+	local SearchResultsPage = Elements.Template:Clone()
+	SearchResultsPage.Name = "SearchResults"
+	SearchResultsPage.Title.Text = "Search Results"
+	SearchResultsPage.Visible = false
+	SearchResultsPage.Parent = Elements
+
+	local searchActive = false
+	local currentlyMoved = {}
+
+	local function ClearSearch()
+		for _, entry in ipairs(currentlyMoved) do
+			entry.Element.Parent = entry.OriginalParent
+			entry.Element.LayoutOrder = entry.OriginalLayoutOrder
+		end
+		currentlyMoved = {}
+		SearchResultsPage.Visible = false
+		Navigation.Visible = true
+		if Window.CurrentTab then
+			for _, page in ipairs(Elements:GetChildren()) do
+				if page.Name == Window.CurrentTab then
+					Elements.UIPageLayout:JumpTo(page)
+				end
+			end
+		end
+	end
+
+	local function RunSearch(query)
+		for _, entry in ipairs(currentlyMoved) do
+			entry.Element.Parent = entry.OriginalParent
+			entry.Element.LayoutOrder = entry.OriginalLayoutOrder
+		end
+		currentlyMoved = {}
+
+		if query == "" then
+			ClearSearch()
+			return
+		end
+
+		Navigation.Visible = false
+		SearchResultsPage.Visible = true
+		Elements.UIPageLayout:JumpTo(SearchResultsPage)
+
+		local lowerQuery = query:lower()
+		local order = 0
+		for _, entry in ipairs(Poltergeist.SearchIndex) do
+			if entry.Element.Parent and string.find(entry.Title:lower(), lowerQuery, 1, true) then
+				order = order + 1
+				entry.Element.Parent = SearchResultsPage
+				entry.Element.LayoutOrder = order
+				table.insert(currentlyMoved, entry)
+			end
+		end
+	end
+
+	SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+		RunSearch(SearchBox.Text)
+	end)
+
+	SearchButton.ImageLabel.MouseButton1Click:Connect(function()
+		SearchBar.Visible = not SearchBar.Visible
+		if SearchBar.Visible then
+			SearchBox:CaptureFocus()
+		else
+			SearchBox.Text = ""
+			ClearSearch()
+		end
+	end)
+
+	SearchButton["MouseEnter"]:Connect(function() tween(SearchButton.ImageLabel, {ImageColor3 = Color3.new(1,1,1)}) end)
+	SearchButton["MouseLeave"]:Connect(function() tween(SearchButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)}) end)
+	
 	local PluginsButton = Main.Controls.ToggleSize:Clone()
 	PluginsButton.Name = "Plugins"
 	PluginsButton.Parent = Main.Controls
@@ -2920,7 +3124,135 @@ function Poltergeist:CreateWindow(WindowSettings)
 		-- Stolen From Sirius Stuff ends here
 
 	end
+	
+	function Window:CreateSettings(SettingsTabSettings)
+		SettingsTabSettings = Kwargify({
+			Icon = "settings",
+			ImageSource = "Material"
+		}, SettingsTabSettings or {})
 
+		local SettingsTabButton = Navigation.Tabs["InActive Template"]:Clone()
+		SettingsTabButton.Name = "Settings"
+		SettingsTabButton.TextLabel.Text = "Settings"
+		SettingsTabButton.Parent = Navigation.Tabs
+		SettingsTabButton.ImageLabel.Image = GetIcon(SettingsTabSettings.Icon, SettingsTabSettings.ImageSource)
+		SettingsTabButton.Visible = true
+
+		local SettingsPage = Elements.Template:Clone()
+		SettingsPage.Name = "Settings"
+		SettingsPage.Title.Text = "Settings"
+		SettingsPage.Visible = true
+		for _, child in ipairs(SettingsPage:GetChildren()) do
+			if (child.ClassName == "Frame" or child.ClassName == "TextLabel") and child.Name ~= "Title" then
+				child:Destroy()
+			end
+		end
+		SettingsPage.Parent = Elements
+
+		local SettingsTab = { Page = SettingsPage }
+
+		function SettingsTab:Activate()
+			tween(SettingsTabButton.ImageLabel, {ImageColor3 = Color3.fromRGB(255,255,255)})
+			tween(SettingsTabButton, {BackgroundTransparency = 0})
+			tween(SettingsTabButton.UIStroke, {Transparency = 0.41})
+			Elements.UIPageLayout:JumpTo(SettingsPage)
+			for _, other in ipairs(Navigation.Tabs:GetChildren()) do
+				if other.Name ~= "InActive Template" and other.ClassName == "Frame" and other ~= SettingsTabButton then
+					tween(other.ImageLabel, {ImageColor3 = Color3.fromRGB(221,221,221)})
+					tween(other, {BackgroundTransparency = 1})
+					tween(other.UIStroke, {Transparency = 1})
+				end
+			end
+			Window.CurrentTab = "Settings"
+		end
+
+		SettingsTabButton.Interact.MouseButton1Click:Connect(function() SettingsTab:Activate() end)
+
+		-- Reaproveita as funções de Tab (Section, Button, ColorPicker, etc.) aplicadas na SettingsPage
+		local ProxyTab = Window:CreateTab({Name = "__SettingsProxy_DoNotUse"})
+		Navigation.Tabs["__SettingsProxy_DoNotUse"]:Destroy() -- some com o botão de nav, só queremos os métodos
+		Elements["__SettingsProxy_DoNotUse"]:Destroy()
+
+		-- Tema
+		ProxyTab:CreateSection("Theme")
+		local c1cp, c2cp, c3cp
+		c1cp = ProxyTab:CreateColorPicker({ Name = "Color 1", Color = Color3.fromRGB(117,164,206) })
+		c2cp = ProxyTab:CreateColorPicker({ Name = "Color 2", Color = Color3.fromRGB(123,201,201) })
+		c3cp = ProxyTab:CreateColorPicker({ Name = "Color 3", Color = Color3.fromRGB(224,138,184) })
+
+		local function UpdateTheme()
+			Poltergeist.ThemeGradient = ColorSequence.new{
+				ColorSequenceKeypoint.new(0, c1cp.Color),
+				ColorSequenceKeypoint.new(0.5, c2cp.Color),
+				ColorSequenceKeypoint.new(1, c3cp.Color)
+			}
+			PoltergeistUI.ThemeRemote.Value = not PoltergeistUI.ThemeRemote.Value
+		end
+		c1cp:Set({Callback = UpdateTheme})
+		c2cp:Set({Callback = UpdateTheme})
+		c3cp:Set({Callback = UpdateTheme})
+
+		ProxyTab:CreateSection("Presets")
+		for name, colors in pairs(PresetGradients) do
+			ProxyTab:CreateButton({
+				Name = name,
+				Callback = function()
+					c1cp:Set({Color = colors[1]})
+					c2cp:Set({Color = colors[2]})
+					c3cp:Set({Color = colors[3]})
+				end
+			})
+		end
+
+		ProxyTab:CreateSection("Configuration")
+		ProxyTab:CreateButton({
+			Name = "Save Configuration",
+			Description = "Saves your current settings.",
+			Callback = function()
+				local ok, err = Poltergeist:SaveConfig("autosave")
+				Poltergeist:Notification({
+					Title = "Settings",
+					Content = ok and "Configuration saved." or ("Failed to save: " .. tostring(err)),
+					Icon = ok and "check_circle" or "dangerous"
+				})
+			end
+		})
+		ProxyTab:CreateButton({
+			Name = "Reload Hub",
+			Description = "Reloads the interface.",
+			Callback = function()
+				Poltergeist:Notification({Title = "Settings", Content = "Reloading...", Icon = "autorenew"})
+				task.wait(0.5)
+				Poltergeist:Destroy()
+			end
+		})
+
+		ProxyTab:CreateSection("Feedback")
+		local feedbackText = ""
+		ProxyTab:CreateInput({
+			Name = "Your Feedback",
+			PlaceholderText = "Type your feedback here...",
+			Callback = function(text) feedbackText = text end
+		})
+		ProxyTab:CreateButton({
+			Name = "Send Feedback",
+			Callback = function()
+				Poltergeist:Notification({Title = "Feedback", Content = "Thanks for your feedback!", Icon = "favorite"})
+			end
+		})
+
+		-- Move o conteúdo criado no proxy pra dentro da página real de Settings
+		for _, child in ipairs(ProxyTab.Page:GetChildren()) do
+			if child.Name ~= "Title" then
+				child.Parent = SettingsPage
+			end
+		end
+		ProxyTab.Page:Destroy()
+
+		Window.Settings = SettingsTab
+		return SettingsTab
+	end
+	
 	function Window:CreateTab(TabSettings)
 
 		local Tab = {}
@@ -2958,14 +3290,19 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Tab.TagBar = Instance.new("Frame")
 				Tab.TagBar.Name = "TagBar"
 				Tab.TagBar.BackgroundTransparency = 1
-				Tab.TagBar.Size = UDim2.new(1, -25, 0, 26)
-				Tab.TagBar.LayoutOrder = -1000
+				Tab.TagBar.Size = UDim2.new(1, -25, 0, 24)
+				Tab.TagBar.LayoutOrder = -99
 				Tab.TagBar.Parent = TabPage
 
 				local TagLayout = Instance.new("UIListLayout", Tab.TagBar)
 				TagLayout.FillDirection = Enum.FillDirection.Horizontal
 				TagLayout.SortOrder = Enum.SortOrder.LayoutOrder
 				TagLayout.Padding = UDim.new(0, 6)
+
+				-- Garante que a Title (se existir) fica sempre antes da barra de tags
+				if TabPage:FindFirstChild("Title") then
+					TabPage.Title.LayoutOrder = -100
+				end
 			end
 
 			local TagId = HttpService:GenerateGUID(false)
@@ -2975,7 +3312,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 			Chip.Name = "Tag_" .. Name
 			Chip.AutomaticSize = Enum.AutomaticSize.X
 			Chip.Size = UDim2.new(0, 0, 0, 22)
-			Chip.BackgroundColor3 = Color3.fromRGB(40, 38, 47)
+			Chip.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+			Chip.BorderSizePixel = 0 -- remove borda nativa contextual
 			Chip.Text = Name
 			Chip.Font = Enum.Font.GothamMedium
 			Chip.TextSize = 11
@@ -2984,26 +3322,35 @@ function Poltergeist:CreateWindow(WindowSettings)
 			Chip.Parent = Tab.TagBar
 
 			local ChipPadding = Instance.new("UIPadding", Chip)
-			ChipPadding.PaddingLeft = UDim.new(0, 10)
-			ChipPadding.PaddingRight = UDim.new(0, 10)
+			ChipPadding.PaddingLeft = UDim.new(0, 12)
+			ChipPadding.PaddingRight = UDim.new(0, 12)
 
 			Instance.new("UICorner", Chip).CornerRadius = UDim.new(1, 0)
+
 			local ChipStroke = Instance.new("UIStroke", Chip)
 			ChipStroke.Color = Color3.fromRGB(64, 61, 76)
-			ChipStroke.Transparency = 0.3
+			ChipStroke.Thickness = 1
+			ChipStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border -- border real, não contextual
+
+			Chip.MouseEnter:Connect(function()
+				if not TagObject.Active then tween(ChipStroke, {Color = Color3.fromRGB(87, 84, 104)}) end
+			end)
+			Chip.MouseLeave:Connect(function()
+				if not TagObject.Active then tween(ChipStroke, {Color = Color3.fromRGB(64, 61, 76)}) end
+			end)
 
 			Chip.MouseButton1Click:Connect(function()
 				TagObject.Active = not TagObject.Active
 				if TagObject.Active then
 					Tab.ActiveTags[TagId] = true
-					tween(Chip, {BackgroundColor3 = Color3.fromRGB(46, 204, 113)})
-					tween(ChipStroke, {Color = Color3.fromRGB(46, 204, 113)})
-					tween(Chip, {TextColor3 = Color3.fromRGB(20, 20, 20)})
+					tween(Chip, {BackgroundColor3 = Color3.fromRGB(224, 138, 175)})
+					tween(Chip, {TextColor3 = Color3.fromRGB(30, 28, 34)})
+					tween(ChipStroke, {Color = Color3.fromRGB(224, 138, 175)})
 				else
 					Tab.ActiveTags[TagId] = nil
-					tween(Chip, {BackgroundColor3 = Color3.fromRGB(40, 38, 47)})
-					tween(ChipStroke, {Color = Color3.fromRGB(64, 61, 76)})
+					tween(Chip, {BackgroundColor3 = Color3.fromRGB(32, 30, 38)})
 					tween(Chip, {TextColor3 = Color3.fromRGB(200, 200, 200)})
+					tween(ChipStroke, {Color = Color3.fromRGB(64, 61, 76)})
 				end
 				Tab:_ApplyTagFilter()
 			end)
@@ -3029,18 +3376,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 					end
 				end
 			end
-		end
-
-		function Tab:_RegisterTaggedElement(Element, TagsList)
-			if not TagsList or #TagsList == 0 then return end
-			local map = {}
-			for _, tagObj in ipairs(TagsList) do
-				if tagObj and tagObj.Id then
-					map[tagObj.Id] = true
-				end
-			end
-			Tab.TaggedElements[Element] = map
-			Tab:_ApplyTagFilter()
 		end
 		
 		if TabSettings.ShowTitle == false then
@@ -3228,6 +3563,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 					Button:Destroy()
 				end
 
+				RegisterSearchable(Button, ButtonSettings.Name, TabPage, Button.LayoutOrder)
+				
 				return ButtonV
 			end
 
@@ -5302,7 +5639,9 @@ function Poltergeist:CreateWindow(WindowSettings)
 			
 			Poltergeist:MakeDetachable(Button, ButtonSettings.Name, "smart_button")
 			Tab:_RegisterTaggedElement(Button, ButtonSettings.Tags)
-
+			
+			RegisterSearchable(Button, ButtonSettings.Name, TabPage, Button.LayoutOrder)
+			
 			return ButtonV
 		end
 
@@ -5796,7 +6135,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 				pcall(function() ToggleSettings.Callback(ToggleSettings.CurrentValue) end)
 			end)
 			Tab:_RegisterTaggedElement(Toggle, ToggleSettings.Tags)
-
+			RegisterSearchable(Toggle, ToggleSettings.Name, TabPage, Toggle.LayoutOrder)
+			
 			return ToggleV
 
 		end
@@ -7588,48 +7928,94 @@ function Poltergeist:CreateWindow(WindowSettings)
 	}
 
 	local function BuildPluginRow(plugin, order)
-		local Row = Elements.Template.ButtonDesc:Clone()
+		local Row = Instance.new("Frame")
 		Row.Name = plugin.Name
+		Row.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+		Row.BackgroundTransparency = 1
+		Row.BorderSizePixel = 0
+		Row.Size = UDim2.new(1, 0, 0, 56)
 		Row.LayoutOrder = order
-		Row.Visible = true
 		Row.Parent = PluginsPanel
 
-		Row.Title.Text = plugin.Name
-		Row.Desc.Text = plugin.Description
+		Instance.new("UICorner", Row).CornerRadius = UDim.new(0, 6)
+		local RowStroke = Instance.new("UIStroke", Row)
+		RowStroke.Color = Color3.fromRGB(64, 61, 76)
+		RowStroke.Thickness = 1
+		RowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		RowStroke.Transparency = 1
 
-		Row.UIStroke.Transparency = 1
-		Row.Title.TextTransparency = 1
-		Row.Desc.TextTransparency = 1
-		Row.BackgroundTransparency = 1
+		local IconHolder = Instance.new("Frame")
+		IconHolder.BackgroundColor3 = Color3.fromRGB(40, 38, 47)
+		IconHolder.BorderSizePixel = 0
+		IconHolder.Position = UDim2.new(0, 10, 0.5, -16)
+		IconHolder.Size = UDim2.new(0, 32, 0, 32)
+		IconHolder.BackgroundTransparency = 1
+		IconHolder.Parent = Row
+		Instance.new("UICorner", IconHolder).CornerRadius = UDim.new(0, 6)
+
+		local Icon = Instance.new("ImageLabel")
+		Icon.BackgroundTransparency = 1
+		Icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		Icon.Position = UDim2.new(0.5, 0, 0.5, 0)
+		Icon.Size = UDim2.new(0, 18, 0, 18)
+		Icon.Image = GetIcon(plugin.Icon or "extension", "Material")
+		Icon.ImageColor3 = Color3.fromRGB(224, 138, 175)
+		Icon.ImageTransparency = 1
+		Icon.Parent = IconHolder
+
+		local Name = Instance.new("TextLabel")
+		Name.BackgroundTransparency = 1
+		Name.Position = UDim2.new(0, 54, 0, 10)
+		Name.Size = UDim2.new(1, -130, 0, 16)
+		Name.Font = Enum.Font.GothamMedium
+		Name.TextSize = 13
+		Name.TextColor3 = Color3.fromRGB(235, 235, 235)
+		Name.TextXAlignment = Enum.TextXAlignment.Left
+		Name.Text = plugin.Name
+		Name.TextTransparency = 1
+		Name.Parent = Row
+
+		local Desc = Instance.new("TextLabel")
+		Desc.BackgroundTransparency = 1
+		Desc.Position = UDim2.new(0, 54, 0, 28)
+		Desc.Size = UDim2.new(1, -130, 0, 16)
+		Desc.Font = Enum.Font.Gotham
+		Desc.TextSize = 11
+		Desc.TextColor3 = Color3.fromRGB(150, 150, 150)
+		Desc.TextXAlignment = Enum.TextXAlignment.Left
+		Desc.Text = plugin.Description
+		Desc.TextTransparency = 1
+		Desc.Parent = Row
+
+		local StatusBtn = Instance.new("TextButton")
+		StatusBtn.AnchorPoint = Vector2.new(1, 0.5)
+		StatusBtn.Position = UDim2.new(1, -12, 0.5, 0)
+		StatusBtn.Size = UDim2.new(0, 66, 0, 24)
+		StatusBtn.BackgroundColor3 = Color3.fromRGB(224, 138, 175)
+		StatusBtn.BackgroundTransparency = 1
+		StatusBtn.Font = Enum.Font.GothamBold
+		StatusBtn.TextSize = 10
+		StatusBtn.TextColor3 = Color3.fromRGB(20, 18, 24)
+		StatusBtn.Text = "INSTALL"
+		StatusBtn.AutoButtonColor = false
+		StatusBtn.BorderSizePixel = 0
+		StatusBtn.Parent = Row
+		Instance.new("UICorner", StatusBtn).CornerRadius = UDim.new(0, 5)
 
 		TweenService:Create(Row, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
-		TweenService:Create(Row.UIStroke, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-		TweenService:Create(Row.Title, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-		TweenService:Create(Row.Desc, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-
-		local StatusLabel = Instance.new("TextLabel")
-		StatusLabel.BackgroundTransparency = 1
-		StatusLabel.AnchorPoint = Vector2.new(1, 0)
-		StatusLabel.Position = UDim2.new(1, -12, 0, 8)
-		StatusLabel.Size = UDim2.new(0, 70, 0, 14)
-		StatusLabel.Font = Enum.Font.GothamMedium
-		StatusLabel.TextSize = 10
-		StatusLabel.TextXAlignment = Enum.TextXAlignment.Right
-		StatusLabel.TextTransparency = 1
-		StatusLabel.Text = "INSTALL"
-		StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-		StatusLabel.Parent = Row
-
-		TweenService:Create(StatusLabel, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+		TweenService:Create(RowStroke, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+		TweenService:Create(Icon, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+		TweenService:Create(Name, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+		TweenService:Create(Desc, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
+		TweenService:Create(StatusBtn, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
 
 		local installed = false
-		Row.Interact.MouseButton1Click:Connect(function()
-			if installed then return end -- no uninstall, as requested
-
+		StatusBtn.MouseButton1Click:Connect(function()
+			if installed then return end
 			installed = true
-			StatusLabel.Text = "INSTALLED"
-			tween(StatusLabel, {TextColor3 = Color3.fromRGB(224, 138, 175)})
-			tween(Row.UIStroke, {Color = Color3.fromRGB(224, 138, 175), Transparency = 0.3})
+			StatusBtn.Text = "INSTALLED"
+			tween(StatusBtn, {BackgroundColor3 = Color3.fromRGB(46, 204, 113)})
+			tween(RowStroke, {Color = Color3.fromRGB(46, 204, 113), Transparency = 0.3})
 
 			if plugin.OnInstall then plugin.OnInstall() end
 
@@ -7638,13 +8024,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Content = plugin.Name .. " has been installed.",
 				Icon = plugin.Icon or "extension"
 			})
-		end)
-
-		Row.MouseEnter:Connect(function()
-			if not installed then tween(Row.UIStroke, {Color = Color3.fromRGB(87, 84, 104)}) end
-		end)
-		Row.MouseLeave:Connect(function()
-			if not installed then tween(Row.UIStroke, {Color = Color3.fromRGB(64, 61, 76)}) end
 		end)
 	end
 
