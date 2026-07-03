@@ -23,7 +23,7 @@ Deity/dp4pv/x64x70 | Certain Scripting and Testing ig
 
 ]]
 
-local Release = "v1.1.7"
+local Release = "v1.1.6"
 
 local Poltergeist = {
 	Folder = "Poltergeist",
@@ -2173,9 +2173,25 @@ end
 
 Poltergeist.DetachedWindows = Poltergeist.DetachedWindows or {}
 
-function Poltergeist:MakeDetachable(Element, Title, Icon)
-	Element.Active = true
+local function GetInstancePath(Root, Target)
+	local path = {}
+	local current = Target
+	while current and current ~= Root do
+		table.insert(path, 1, current.Name)
+		current = current.Parent
+	end
+	return path
+end
 
+local function GetByPath(Root, Path)
+	local current = Root
+	for _, name in ipairs(Path) do
+		current = current and current:FindFirstChild(name)
+	end
+	return current
+end
+
+function Poltergeist:MakeDetachable(Element, Title, Icon)
 	local detached = false
 
 	local function CreateFloatWindow()
@@ -2187,12 +2203,6 @@ function Poltergeist:MakeDetachable(Element, Title, Icon)
 			})
 			return
 		end
-
-		local OriginalParent = Element.Parent
-		local OriginalLayoutOrder = Element.LayoutOrder
-		local OriginalSize = Element.Size
-		local OriginalPosition = Element.Position
-		local OriginalZIndex = Element.ZIndex
 
 		local AbsSize = Element.AbsoluteSize
 
@@ -2277,10 +2287,83 @@ function Poltergeist:MakeDetachable(Element, Title, Icon)
 		Body.Size = UDim2.new(0, AbsSize.X, 0, AbsSize.Y)
 		Body.Parent = floatWindow
 
-		-- Move (don't clone) the real element, so callbacks keep working
-		Element.Parent = Body
-		Element.Position = UDim2.new(0, 0, 0, 0)
-		Element.Size = UDim2.new(0, AbsSize.X, 0, AbsSize.Y)
+		-- CLONE (o original fica intacto no hub, nunca é movido)
+		local Clone = Element:Clone()
+		Clone.Parent = Body
+		Clone.Position = UDim2.new(0, 0, 0, 0)
+		Clone.Size = UDim2.new(0, AbsSize.X, 0, AbsSize.Y)
+		Clone.Visible = true
+
+		-- Repassa cliques/inputs do clone pro elemento original (mesma callback real dispara)
+		for _, desc in ipairs(Clone:GetDescendants()) do
+			local path = GetInstancePath(Clone, desc)
+			local originalDesc = GetByPath(Element, path)
+			if originalDesc then
+				if desc:IsA("GuiButton") then
+					desc.MouseButton1Click:Connect(function()
+						if firesignal then
+							pcall(firesignal, originalDesc.MouseButton1Click)
+						end
+					end)
+					desc.MouseButton1Down:Connect(function()
+						if firesignal then
+							pcall(firesignal, originalDesc.MouseButton1Down)
+						end
+					end)
+					desc.InputEnded:Connect(function(inp)
+						if firesignal and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
+							pcall(firesignal, originalDesc.InputEnded, inp)
+						end
+					end)
+				elseif desc:IsA("TextBox") then
+					desc:GetPropertyChangedSignal("Text"):Connect(function()
+						originalDesc.Text = desc.Text
+					end)
+					desc.FocusLost:Connect(function(enter)
+						if firesignal then
+							pcall(firesignal, originalDesc.FocusLost, enter)
+						end
+					end)
+				end
+			end
+		end
+
+		-- Espelha visualmente o original -> clone continuamente (fonte da verdade é sempre o original)
+		local mirrorConn
+		mirrorConn = RunService.Heartbeat:Connect(function()
+			if not Element.Parent or not floatWindow.Parent then
+				if mirrorConn then mirrorConn:Disconnect() end
+				return
+			end
+			for _, desc in ipairs(Element:GetDescendants()) do
+				local path = GetInstancePath(Element, desc)
+				local cloneDesc = GetByPath(Clone, path)
+				if cloneDesc then
+					if desc:IsA("TextLabel") or desc:IsA("TextButton") or desc:IsA("TextBox") then
+						if cloneDesc.Text ~= desc.Text then cloneDesc.Text = desc.Text end
+						cloneDesc.TextColor3 = desc.TextColor3
+						cloneDesc.TextTransparency = desc.TextTransparency
+					end
+					if desc:IsA("GuiObject") then
+						cloneDesc.BackgroundColor3 = desc.BackgroundColor3
+						cloneDesc.BackgroundTransparency = desc.BackgroundTransparency
+						cloneDesc.Size = desc.Size
+						if not desc:IsA("TextBox") then
+							cloneDesc.Position = desc.Position
+						end
+					end
+					if desc:IsA("ImageLabel") or desc:IsA("ImageButton") then
+						cloneDesc.ImageColor3 = desc.ImageColor3
+						cloneDesc.ImageTransparency = desc.ImageTransparency
+						cloneDesc.Image = desc.Image
+					end
+					if desc:IsA("UIStroke") then
+						cloneDesc.Color = desc.Color
+						cloneDesc.Transparency = desc.Transparency
+					end
+				end
+			end
+		end)
 
 		local minimized = false
 		local expandedSize = floatWindow.Size
@@ -2297,12 +2380,7 @@ function Poltergeist:MakeDetachable(Element, Title, Icon)
 		end)
 
 		CloseBtn.MouseButton1Click:Connect(function()
-			Element.Parent = OriginalParent
-			Element.Size = OriginalSize
-			Element.Position = OriginalPosition
-			Element.LayoutOrder = OriginalLayoutOrder
-			Element.ZIndex = OriginalZIndex
-
+			if mirrorConn then mirrorConn:Disconnect() end
 			floatWindow:Destroy()
 			RemoveTable(Poltergeist.DetachedWindows, floatWindow)
 			detached = false
@@ -3097,6 +3175,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 					Label:Destroy()
 				end
 
+				Poltergeist:MakeDetachable(Label, LabelSettings.Text, "label")
+
 				return LabelV
 			end
 
@@ -3355,6 +3435,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 					Slider.Main.UIStroke.color.Color = Poltergeist.ThemeGradient
 				end)
 
+				Poltergeist:MakeDetachable(Slider, SliderSettings.Name, "linear_scale")
+
 				return SliderV
 
 			end
@@ -3513,6 +3595,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 					Holder.Visible = false
 					Holder:Destroy()
 				end
+
+				Poltergeist:MakeDetachable(Holder, ProgressSettings.Title, "show_chart")
 
 				return ProgressV
 			end
@@ -5590,7 +5674,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 			if Flag then
 				Poltergeist.Options[Flag] = ToggleV
 			end
-
+			
 			Poltergeist:MakeDetachable(Toggle, ToggleSettings.Name, "toggle_on")
 
 			return ToggleV
