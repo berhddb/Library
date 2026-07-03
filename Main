@@ -2402,7 +2402,7 @@ function Poltergeist:MakeDetachable(Element, Title, Icon)
 		local AbsSize = Element.AbsoluteSize
 
 		if MousePos.X >= AbsPos.X and MousePos.X <= AbsPos.X + AbsSize.X
-		and MousePos.Y >= AbsPos.Y and MousePos.Y <= AbsPos.Y + AbsSize.Y then
+			and MousePos.Y >= AbsPos.Y and MousePos.Y <= AbsPos.Y + AbsSize.Y then
 			CreateFloatWindow()
 		end
 	end)
@@ -2535,6 +2535,18 @@ function Poltergeist:CreateWindow(WindowSettings)
 	for i,v in pairs(Main.Controls:GetChildren()) do
 		v.Visible = false
 	end
+	
+	local PluginsButton = Main.Controls.ToggleSize:Clone()
+	PluginsButton.Name = "Plugins"
+	PluginsButton.Parent = Main.Controls
+	PluginsButton.ImageLabel.Image = GetIcon("search", "Material")
+
+	PluginsButton.Position = UDim2.new(
+		Main.Controls.ToggleSize.Position.X.Scale,
+		Main.Controls.ToggleSize.Position.X.Offset - (Main.Controls.ToggleSize.Size.X.Offset + 8),
+		Main.Controls.ToggleSize.Position.Y.Scale,
+		Main.Controls.ToggleSize.Position.Y.Offset
+	)
 
 	Main:GetPropertyChangedSignal("Position"):Connect(function()
 		Main.Parent.ShadowHolder.Position = Main.Position
@@ -5674,7 +5686,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 			if Flag then
 				Poltergeist.Options[Flag] = ToggleV
 			end
-			
+
 			Poltergeist:MakeDetachable(Toggle, ToggleSettings.Name, "toggle_on")
 
 			return ToggleV
@@ -7445,7 +7457,174 @@ function Poltergeist:CreateWindow(WindowSettings)
 		Window.State = true
 		PoltergeistUI.MobileSupport.Visible = false
 	end)
+	
+	-- ================= Plugins layer =================
 
+	local PluginsPanel = nil
+
+	local PluginList = {
+		{
+			Name = "Explorer",
+			Description = "By Infinite Yield",
+			Icon = "search",
+			OnInstall = function()
+				pcall(function()
+					loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/dex.lua"))()
+				end)
+			end,
+		},
+	}
+
+	local function BuildPluginRow(plugin, order)
+		local Row = Elements.Template.ButtonDesc:Clone()
+		Row.Name = plugin.Name
+		Row.LayoutOrder = order
+		Row.Visible = true
+		Row.Parent = PluginsPanel
+
+		Row.Title.Text = plugin.Name
+		Row.Desc.Text = plugin.Description
+
+		Row.UIStroke.Transparency = 1
+		Row.Title.TextTransparency = 1
+		Row.Desc.TextTransparency = 1
+		Row.BackgroundTransparency = 1
+
+		TweenService:Create(Row, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+		TweenService:Create(Row.UIStroke, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+		TweenService:Create(Row.Title, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+		TweenService:Create(Row.Desc, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+		local StatusLabel = Instance.new("TextLabel")
+		StatusLabel.BackgroundTransparency = 1
+		StatusLabel.AnchorPoint = Vector2.new(1, 0)
+		StatusLabel.Position = UDim2.new(1, -12, 0, 8)
+		StatusLabel.Size = UDim2.new(0, 70, 0, 14)
+		StatusLabel.Font = Enum.Font.GothamMedium
+		StatusLabel.TextSize = 10
+		StatusLabel.TextXAlignment = Enum.TextXAlignment.Right
+		StatusLabel.TextTransparency = 1
+		StatusLabel.Text = "INSTALL"
+		StatusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+		StatusLabel.Parent = Row
+
+		TweenService:Create(StatusLabel, TweenInfo.new(0.35, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+		local installed = false
+		Row.Interact.MouseButton1Click:Connect(function()
+			if installed then return end -- no uninstall, as requested
+
+			installed = true
+			StatusLabel.Text = "INSTALLED"
+			tween(StatusLabel, {TextColor3 = Color3.fromRGB(224, 138, 175)})
+			tween(Row.UIStroke, {Color = Color3.fromRGB(224, 138, 175), Transparency = 0.3})
+
+			if plugin.OnInstall then plugin.OnInstall() end
+
+			Poltergeist:Notification({
+				Title = "Plugins",
+				Content = plugin.Name .. " has been installed.",
+				Icon = plugin.Icon or "extension"
+			})
+		end)
+
+		Row.MouseEnter:Connect(function()
+			if not installed then tween(Row.UIStroke, {Color = Color3.fromRGB(87, 84, 104)}) end
+		end)
+		Row.MouseLeave:Connect(function()
+			if not installed then tween(Row.UIStroke, {Color = Color3.fromRGB(64, 61, 76)}) end
+		end)
+	end
+
+	local function BuildPluginsPanel()
+		PluginsPanel = Instance.new("Frame")
+		PluginsPanel.Name = "PluginsPanel"
+		PluginsPanel.BackgroundColor3 = Color3.fromRGB(28, 26, 33)
+		PluginsPanel.BorderSizePixel = 0
+		PluginsPanel.AnchorPoint = Vector2.new(0.5, 0.5)
+		PluginsPanel.Position = UDim2.new(0.5, 0, 0.5, 0)
+		PluginsPanel.Size = UDim2.new(0, 360, 0, 0)
+		PluginsPanel.AutomaticSize = Enum.AutomaticSize.Y
+		PluginsPanel.ZIndex = 500
+		PluginsPanel.Visible = false
+		PluginsPanel.Parent = PoltergeistUI
+
+		Instance.new("UICorner", PluginsPanel).CornerRadius = UDim.new(0, 6)
+		local PPStroke = Instance.new("UIStroke", PluginsPanel)
+		PPStroke.Color = Color3.fromRGB(64, 61, 76)
+		PPStroke.Transparency = 0.5
+
+		local PPPadding = Instance.new("UIPadding", PluginsPanel)
+		PPPadding.PaddingTop = UDim.new(0, 16)
+		PPPadding.PaddingBottom = UDim.new(0, 16)
+		PPPadding.PaddingLeft = UDim.new(0, 16)
+		PPPadding.PaddingRight = UDim.new(0, 16)
+
+		local PPLayout = Instance.new("UIListLayout", PluginsPanel)
+		PPLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		PPLayout.Padding = UDim.new(0, 8)
+
+		local PPHeader = Instance.new("Frame")
+		PPHeader.BackgroundTransparency = 1
+		PPHeader.Size = UDim2.new(1, 0, 0, 24)
+		PPHeader.LayoutOrder = 0
+		PPHeader.Parent = PluginsPanel
+
+		local PPTitle = Instance.new("TextLabel")
+		PPTitle.BackgroundTransparency = 1
+		PPTitle.Size = UDim2.new(1, -24, 1, 0)
+		PPTitle.Font = Enum.Font.GothamBold
+		PPTitle.TextSize = 15
+		PPTitle.TextColor3 = Color3.fromRGB(240, 240, 240)
+		PPTitle.TextXAlignment = Enum.TextXAlignment.Left
+		PPTitle.Text = "Install Plugins"
+		PPTitle.Parent = PPHeader
+
+		local PPClose = Instance.new("TextButton")
+		PPClose.BackgroundTransparency = 1
+		PPClose.AnchorPoint = Vector2.new(1, 0.5)
+		PPClose.Position = UDim2.new(1, 0, 0.5, 0)
+		PPClose.Size = UDim2.new(0, 20, 0, 20)
+		PPClose.Font = Enum.Font.GothamBold
+		PPClose.TextSize = 14
+		PPClose.Text = "×"
+		PPClose.TextColor3 = Color3.fromRGB(195, 195, 195)
+		PPClose.Parent = PPHeader
+
+		PPClose.MouseEnter:Connect(function() tween(PPClose, {TextColor3 = Color3.new(1,1,1)}) end)
+		PPClose.MouseLeave:Connect(function() tween(PPClose, {TextColor3 = Color3.fromRGB(195,195,195)}) end)
+
+		local PPLine = Instance.new("Frame")
+		PPLine.BackgroundColor3 = Color3.fromRGB(60, 58, 70)
+		PPLine.BorderSizePixel = 0
+		PPLine.Size = UDim2.new(1, 0, 0, 1)
+		PPLine.LayoutOrder = 1
+		PPLine.Parent = PluginsPanel
+
+		for i, plugin in ipairs(PluginList) do
+			BuildPluginRow(plugin, i + 1)
+		end
+
+		PPClose.MouseButton1Click:Connect(function()
+			PluginsPanel.Visible = false
+		end)
+
+		Draggable(PPHeader, PluginsPanel)
+	end
+
+	BuildPluginsPanel()
+
+	PluginsButton.ImageLabel.MouseButton1Click:Connect(function()
+		PluginsPanel.Visible = not PluginsPanel.Visible
+	end)
+
+	PluginsButton["MouseEnter"]:Connect(function()
+		tween(PluginsButton.ImageLabel, {ImageColor3 = Color3.new(1, 1, 1)})
+	end)
+	PluginsButton["MouseLeave"]:Connect(function()
+		tween(PluginsButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195, 195, 195)})
+	end)
+	
 	return Window
 end
 
