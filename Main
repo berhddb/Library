@@ -23,7 +23,7 @@ Deity/dp4pv/x64x70 | Certain Scripting and Testing ig
 
 ]]
 
-local Release = "v1.1.6"
+local Release = "v1.1.7"
 
 local Poltergeist = {
 	Folder = "Poltergeist",
@@ -5404,6 +5404,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Slider.Main.UIStroke.color.Color = Poltergeist.ThemeGradient
 			end)
 
+			Poltergeist:MakeDetachable(Slider, SliderSettings.Name, "linear_scale")
+
 			return SliderV
 
 		end
@@ -6510,6 +6512,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 			end
 
 			-- Poltergeist.Flags[DropdownSettings.Flag] = DropdownSettings
+
+			Poltergeist:MakeDetachable(Dropdown, DropdownSettings.Name, "arrow_drop_down_circle")
 
 			return DropdownV
 
