@@ -35,6 +35,7 @@ local Poltergeist = {
 	})
 }
 
+local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
@@ -2171,6 +2172,17 @@ function Poltergeist:Notification(data) -- action e.g open messages
 	end)
 end
 
+Poltergeist.SearchIndex = Poltergeist.SearchIndex or {}
+
+local function RegisterSearchable(Element, Title, OriginalParent, OriginalLayoutOrder)
+	table.insert(Poltergeist.SearchIndex, {
+		Element = Element,
+		Title = Title,
+		OriginalParent = OriginalParent,
+		OriginalLayoutOrder = OriginalLayoutOrder
+	})
+end
+
 Poltergeist.DetachedWindows = Poltergeist.DetachedWindows or {}
 
 local function GetInstancePath(Root, Target)
@@ -2191,35 +2203,33 @@ local function GetByPath(Root, Path)
 	return current
 end
 
-function Poltergeist:MakeDetachable(Element, Title, Icon)
+function Poltergeist:MakeDetachable(Element, Title, Icon, DirectCallback)
 	local detached = false
 
-	local function CreateFloatWindow()
-		if #Poltergeist.DetachedWindows >= 3 then
-			Poltergeist:Notification({
-				Title = "Detach Limit Reached",
-				Content = "You can only have 3 detached windows open at once.",
-				Icon = "dangerous"
-			})
-			return
-		end
-
+	local function CreateFloatWindow(SpawnX, SpawnY)
 		local AbsSize = Element.AbsoluteSize
 
 		local floatWindow = Instance.new("Frame")
 		floatWindow.Name = "Detached - " .. Title
 		floatWindow.BackgroundColor3 = Color3.fromRGB(28, 26, 33)
 		floatWindow.BorderSizePixel = 0
-		floatWindow.AnchorPoint = Vector2.new(0.5, 0.5)
-		floatWindow.Position = UDim2.new(0.5, math.random(-60, 60), 0.5, math.random(-60, 60))
+		floatWindow.AnchorPoint = Vector2.new(0, 0)
 		floatWindow.Size = UDim2.new(0, math.max(AbsSize.X + 24, 200), 0, AbsSize.Y + 50)
 		floatWindow.ZIndex = 700
 		floatWindow.ClipsDescendants = true
 		floatWindow.Parent = PoltergeistUI
 
+		-- Clamp pra não nascer fora da tela
+		local viewport = Camera.ViewportSize
+		local clampedX = math.clamp(SpawnX, 0, viewport.X - floatWindow.Size.X.Offset)
+		local clampedY = math.clamp(SpawnY, 0, viewport.Y - floatWindow.Size.Y.Offset)
+		floatWindow.Position = UDim2.fromOffset(clampedX, clampedY)
+
 		Instance.new("UICorner", floatWindow).CornerRadius = UDim.new(0, 6)
 		local FWStroke = Instance.new("UIStroke", floatWindow)
 		FWStroke.Color = Color3.fromRGB(64, 61, 76)
+		FWStroke.Thickness = 1
+		FWStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 		FWStroke.Transparency = 0.5
 
 		local Header = Instance.new("Frame")
@@ -2287,48 +2297,39 @@ function Poltergeist:MakeDetachable(Element, Title, Icon)
 		Body.Size = UDim2.new(0, AbsSize.X, 0, AbsSize.Y)
 		Body.Parent = floatWindow
 
-		-- CLONE (o original fica intacto no hub, nunca é movido)
 		local Clone = Element:Clone()
 		Clone.Parent = Body
 		Clone.Position = UDim2.new(0, 0, 0, 0)
 		Clone.Size = UDim2.new(0, AbsSize.X, 0, AbsSize.Y)
 		Clone.Visible = true
 
-		-- Repassa cliques/inputs do clone pro elemento original (mesma callback real dispara)
 		for _, desc in ipairs(Clone:GetDescendants()) do
 			local path = GetInstancePath(Clone, desc)
 			local originalDesc = GetByPath(Element, path)
 			if originalDesc then
 				if desc:IsA("GuiButton") then
 					desc.MouseButton1Click:Connect(function()
-						if firesignal then
-							pcall(firesignal, originalDesc.MouseButton1Click)
-						end
-					end)
-					desc.MouseButton1Down:Connect(function()
-						if firesignal then
-							pcall(firesignal, originalDesc.MouseButton1Down)
-						end
-					end)
-					desc.InputEnded:Connect(function(inp)
-						if firesignal and (inp.UserInputType == Enum.UserInputType.MouseButton1 or inp.UserInputType == Enum.UserInputType.Touch) then
-							pcall(firesignal, originalDesc.InputEnded, inp)
+						if DirectCallback then
+							-- Só chama a callback direta; NÃO tenta reenviar o sinal original
+							-- (fazer as duas coisas causava o bug do toggle "não funcionar")
+							pcall(DirectCallback)
+						else
+							FireOriginalSignal(originalDesc.MouseButton1Click)
 						end
 					end)
 				elseif desc:IsA("TextBox") then
 					desc:GetPropertyChangedSignal("Text"):Connect(function()
-						originalDesc.Text = desc.Text
+						if originalDesc.Text ~= desc.Text then
+							originalDesc.Text = desc.Text
+						end
 					end)
 					desc.FocusLost:Connect(function(enter)
-						if firesignal then
-							pcall(firesignal, originalDesc.FocusLost, enter)
-						end
+						FireOriginalSignal(originalDesc.FocusLost, enter)
 					end)
 				end
 			end
 		end
 
-		-- Espelha visualmente o original -> clone continuamente (fonte da verdade é sempre o original)
 		local mirrorConn
 		mirrorConn = RunService.Heartbeat:Connect(function()
 			if not Element.Parent or not floatWindow.Parent then
@@ -2398,12 +2399,16 @@ function Poltergeist:MakeDetachable(Element, Title, Icon)
 		if not Element or not Element.Parent then return end
 
 		local MousePos = UserInputService:GetMouseLocation()
-		local AbsPos = Element.AbsolutePosition
-		local AbsSize = Element.AbsoluteSize
+		local PlayerGui = Player:FindFirstChildOfClass("PlayerGui")
+		if not PlayerGui then return end
 
-		if MousePos.X >= AbsPos.X and MousePos.X <= AbsPos.X + AbsSize.X
-			and MousePos.Y >= AbsPos.Y and MousePos.Y <= AbsPos.Y + AbsSize.Y then
-			CreateFloatWindow()
+		local hits = PlayerGui:GetGuiObjectsAtPosition(MousePos.X, MousePos.Y)
+		local topmost = hits[1]
+		if not topmost then return end
+
+		if topmost == Element or topmost:IsDescendantOf(Element) then
+			local inset = GuiService:GetGuiInset()
+			CreateFloatWindow(MousePos.X - inset.X, MousePos.Y - inset.Y)
 		end
 	end)
 end
@@ -3134,7 +3139,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 				end
 
 				Poltergeist:MakeDetachable(Button, ButtonSettings.Name, "smart_button")
-
+				RegisterSearchable(Button, ButtonSettings.Name, TabPage, Button.LayoutOrder) -- exemplo pro Button; troque o nome nos demais
+				
 				return ButtonV
 			end
 
@@ -5201,7 +5207,9 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Button.Visible = false
 				Button:Destroy()
 			end
-
+			
+			RegisterSearchable(Button, ButtonSettings.Name, TabPage, Button.LayoutOrder) -- exemplo pro Button; troque o nome nos demais
+			
 			return ButtonV
 		end
 
@@ -5688,7 +5696,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 			end
 
 			Poltergeist:MakeDetachable(Toggle, ToggleSettings.Name, "toggle_on")
-
+			RegisterSearchable(Toggle, ToggleSettings.Name, TabPage, Toggle.LayoutOrder)
+			
 			return ToggleV
 
 		end
@@ -7457,7 +7466,117 @@ function Poltergeist:CreateWindow(WindowSettings)
 		Window.State = true
 		PoltergeistUI.MobileSupport.Visible = false
 	end)
+	
+	local SearchButton = Main.Controls.ToggleSize:Clone()
+	SearchButton.Name = "Search"
+	SearchButton.Parent = Main.Controls
+	SearchButton.ImageLabel.Image = GetIcon("search", "Material")
+	SearchButton.Position = UDim2.new(
+		PluginsButton.Position.X.Scale,
+		PluginsButton.Position.X.Offset - (PluginsButton.Size.X.Offset + 8),
+		PluginsButton.Position.Y.Scale,
+		PluginsButton.Position.Y.Offset
+	)
 
+	local SearchBar = Instance.new("Frame")
+	SearchBar.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+	SearchBar.BorderSizePixel = 0
+	SearchBar.AnchorPoint = Vector2.new(0.5, 0)
+	SearchBar.Position = UDim2.new(0.5, 0, 0, 44)
+	SearchBar.Size = UDim2.new(0, 240, 0, 30)
+	SearchBar.ZIndex = 300
+	SearchBar.Visible = false
+	SearchBar.Parent = Main
+	Instance.new("UICorner", SearchBar).CornerRadius = UDim.new(0, 6)
+	local SearchStroke = Instance.new("UIStroke", SearchBar)
+	SearchStroke.Color = Color3.fromRGB(64, 61, 76)
+	SearchStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+	local SearchBox = Instance.new("TextBox")
+	SearchBox.BackgroundTransparency = 1
+	SearchBox.Position = UDim2.new(0, 12, 0, 0)
+	SearchBox.Size = UDim2.new(1, -24, 1, 0)
+	SearchBox.Font = Enum.Font.Gotham
+	SearchBox.TextSize = 13
+	SearchBox.TextColor3 = Color3.fromRGB(230, 230, 230)
+	SearchBox.PlaceholderText = "Search..."
+	SearchBox.Text = ""
+	SearchBox.TextXAlignment = Enum.TextXAlignment.Left
+	SearchBox.ClearTextOnFocus = false
+	SearchBox.ZIndex = 301
+	SearchBox.Parent = SearchBar
+
+	local SearchResultsPage = Elements.Template:Clone()
+	SearchResultsPage.Name = "SearchResults"
+	SearchResultsPage.Title.Text = "Search Results"
+	SearchResultsPage.Visible = false
+	SearchResultsPage.Parent = Elements
+
+	local searchActive = false
+	local currentlyMoved = {}
+
+	local function ClearSearch()
+		for _, entry in ipairs(currentlyMoved) do
+			entry.Element.Parent = entry.OriginalParent
+			entry.Element.LayoutOrder = entry.OriginalLayoutOrder
+		end
+		currentlyMoved = {}
+		SearchResultsPage.Visible = false
+		Navigation.Visible = true
+		if Window.CurrentTab then
+			for _, page in ipairs(Elements:GetChildren()) do
+				if page.Name == Window.CurrentTab then
+					Elements.UIPageLayout:JumpTo(page)
+				end
+			end
+		end
+	end
+
+	local function RunSearch(query)
+		for _, entry in ipairs(currentlyMoved) do
+			entry.Element.Parent = entry.OriginalParent
+			entry.Element.LayoutOrder = entry.OriginalLayoutOrder
+		end
+		currentlyMoved = {}
+
+		if query == "" then
+			ClearSearch()
+			return
+		end
+
+		Navigation.Visible = false
+		SearchResultsPage.Visible = true
+		Elements.UIPageLayout:JumpTo(SearchResultsPage)
+
+		local lowerQuery = query:lower()
+		local order = 0
+		for _, entry in ipairs(Poltergeist.SearchIndex) do
+			if entry.Element.Parent and string.find(entry.Title:lower(), lowerQuery, 1, true) then
+				order = order + 1
+				entry.Element.Parent = SearchResultsPage
+				entry.Element.LayoutOrder = order
+				table.insert(currentlyMoved, entry)
+			end
+		end
+	end
+
+	SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+		RunSearch(SearchBox.Text)
+	end)
+
+	SearchButton.ImageLabel.MouseButton1Click:Connect(function()
+		SearchBar.Visible = not SearchBar.Visible
+		if SearchBar.Visible then
+			SearchBox:CaptureFocus()
+		else
+			SearchBox.Text = ""
+			ClearSearch()
+		end
+	end)
+
+	SearchButton["MouseEnter"]:Connect(function() tween(SearchButton.ImageLabel, {ImageColor3 = Color3.new(1,1,1)}) end)
+	SearchButton["MouseLeave"]:Connect(function() tween(SearchButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)}) end)
+	
 	-- ================= Plugins layer =================
 
 	local PluginsPanel = nil
