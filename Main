@@ -3125,6 +3125,25 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 	end
 	
+	function Tab:_ApplyTagFilter()
+		local anyActive = false
+		for _ in pairs(Tab.ActiveTags) do anyActive = true break end
+
+		for element, tagMap in pairs(Tab.TaggedElements) do
+			if element and element.Parent then
+				if not anyActive then
+					element.Visible = true
+				else
+					local show = false
+					for tagId in pairs(Tab.ActiveTags) do
+						if tagMap[tagId] then show = true break end
+					end
+					element.Visible = show
+				end
+			end
+		end
+	end
+	
 	function Window:CreateSettings(SettingsTabSettings)
 		SettingsTabSettings = Kwargify({
 			Icon = "settings",
@@ -3357,25 +3376,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			table.insert(Tab.Tags, TagObject)
 			return TagObject
-		end
-
-		function Tab:_ApplyTagFilter()
-			local anyActive = false
-			for _ in pairs(Tab.ActiveTags) do anyActive = true break end
-
-			for element, tagMap in pairs(Tab.TaggedElements) do
-				if element and element.Parent then
-					if not anyActive then
-						element.Visible = true
-					else
-						local show = false
-						for tagId in pairs(Tab.ActiveTags) do
-							if tagMap[tagId] then show = true break end
-						end
-						element.Visible = show
-					end
-				end
-			end
 		end
 		
 		if TabSettings.ShowTitle == false then
