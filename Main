@@ -2314,8 +2314,17 @@ function Poltergeist:MakeDetachable(Element, Title, Icon)
 		detached = true
 	end
 
-	Element.InputBegan:Connect(function(Input)
-		if Input.UserInputType == Enum.UserInputType.MouseButton2 and not detached then
+	UserInputService.InputBegan:Connect(function(Input, GameProcessedEvent)
+		if Input.UserInputType ~= Enum.UserInputType.MouseButton2 then return end
+		if detached then return end
+		if not Element or not Element.Parent then return end
+
+		local MousePos = UserInputService:GetMouseLocation()
+		local AbsPos = Element.AbsolutePosition
+		local AbsSize = Element.AbsoluteSize
+
+		if MousePos.X >= AbsPos.X and MousePos.X <= AbsPos.X + AbsSize.X
+		and MousePos.Y >= AbsPos.Y and MousePos.Y <= AbsPos.Y + AbsSize.Y then
 			CreateFloatWindow()
 		end
 	end)
