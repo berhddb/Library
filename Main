@@ -7594,27 +7594,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 		Window.State = true
 		PoltergeistUI.MobileSupport.Visible = false
 	end)
-	
-	local SettingsButton = Main.Controls.ToggleSize:Clone()
-	SettingsButton.Name = "SettingsButton"
-	SettingsButton.Parent = Main.Controls
-	SettingsButton.ImageLabel.Image = GetIcon("settings", "Material")
-	SettingsButton.Position = UDim2.new(
-		SearchButton.Position.X.Scale,
-		SearchButton.Position.X.Offset - (SearchButton.Size.X.Offset + 8),
-		SearchButton.Position.Y.Scale,
-		SearchButton.Position.Y.Offset
-	)
-
-	SettingsButton.ImageLabel.MouseButton1Click:Connect(function()
-		if Window.Settings then
-			Window.Settings:Activate()
-		else
-			Poltergeist:Notification({Title = "Settings", Content = "No settings tab has been created yet. Call Window:CreateSettings() first.", Icon = "dangerous"})
-		end
-	end)
-	SettingsButton["MouseEnter"]:Connect(function() tween(SettingsButton.ImageLabel, {ImageColor3 = Color3.new(1,1,1)}) end)
-	SettingsButton["MouseLeave"]:Connect(function() tween(SettingsButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)}) end)	
 
 	local SearchButton = Main.Controls.ToggleSize:Clone()
 	SearchButton.Name = "Search"
@@ -7725,6 +7704,27 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 	SearchButton["MouseEnter"]:Connect(function() tween(SearchButton.ImageLabel, {ImageColor3 = Color3.new(1,1,1)}) end)
 	SearchButton["MouseLeave"]:Connect(function() tween(SearchButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)}) end)
+	
+	local SettingsButton = Main.Controls.ToggleSize:Clone()
+	SettingsButton.Name = "SettingsButton"
+	SettingsButton.Parent = Main.Controls
+	SettingsButton.ImageLabel.Image = GetIcon("settings", "Material")
+	SettingsButton.Position = UDim2.new(
+		SearchButton.Position.X.Scale,
+		SearchButton.Position.X.Offset - (SearchButton.Size.X.Offset + 8),
+		SearchButton.Position.Y.Scale,
+		SearchButton.Position.Y.Offset
+	)
+
+	SettingsButton.ImageLabel.MouseButton1Click:Connect(function()
+		if Window.Settings then
+			Window.Settings:Activate()
+		else
+			Poltergeist:Notification({Title = "Settings", Content = "No settings tab has been created yet. Call Window:CreateSettings() first.", Icon = "dangerous"})
+		end
+	end)
+	SettingsButton["MouseEnter"]:Connect(function() tween(SettingsButton.ImageLabel, {ImageColor3 = Color3.new(1,1,1)}) end)
+	SettingsButton["MouseLeave"]:Connect(function() tween(SettingsButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)}) end)	
 	
 	-- ================= Plugins layer =================
 
