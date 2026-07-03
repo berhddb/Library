@@ -5591,6 +5591,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Poltergeist.Options[Flag] = ToggleV
 			end
 
+			Poltergeist:MakeDetachable(Toggle, ToggleSettings.Name, "toggle_on")
+
 			return ToggleV
 
 		end
