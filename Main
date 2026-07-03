@@ -2544,7 +2544,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 	local PluginsButton = Main.Controls.ToggleSize:Clone()
 	PluginsButton.Name = "Plugins"
 	PluginsButton.Parent = Main.Controls
-	PluginsButton.ImageLabel.Image = GetIcon("search", "Material")
+	PluginsButton.ImageLabel.Image = GetIcon("extension", "Material")
 
 	PluginsButton.Position = UDim2.new(
 		Main.Controls.ToggleSize.Position.X.Scale,
@@ -2925,7 +2925,135 @@ function Poltergeist:CreateWindow(WindowSettings)
 		-- Stolen From Sirius Stuff ends here
 
 	end
+	
+	function Window:CreateSettings(SettingsTabSettings)
+		SettingsTabSettings = Kwargify({
+			Icon = "settings",
+			ImageSource = "Material"
+		}, SettingsTabSettings or {})
 
+		local SettingsTabButton = Navigation.Tabs["InActive Template"]:Clone()
+		SettingsTabButton.Name = "Settings"
+		SettingsTabButton.TextLabel.Text = "Settings"
+		SettingsTabButton.Parent = Navigation.Tabs
+		SettingsTabButton.ImageLabel.Image = GetIcon(SettingsTabSettings.Icon, SettingsTabSettings.ImageSource)
+		SettingsTabButton.Visible = true
+
+		local SettingsPage = Elements.Template:Clone()
+		SettingsPage.Name = "Settings"
+		SettingsPage.Title.Text = "Settings"
+		SettingsPage.Visible = true
+		for _, child in ipairs(SettingsPage:GetChildren()) do
+			if (child.ClassName == "Frame" or child.ClassName == "TextLabel") and child.Name ~= "Title" then
+				child:Destroy()
+			end
+		end
+		SettingsPage.Parent = Elements
+
+		local SettingsTab = { Page = SettingsPage }
+
+		function SettingsTab:Activate()
+			tween(SettingsTabButton.ImageLabel, {ImageColor3 = Color3.fromRGB(255,255,255)})
+			tween(SettingsTabButton, {BackgroundTransparency = 0})
+			tween(SettingsTabButton.UIStroke, {Transparency = 0.41})
+			Elements.UIPageLayout:JumpTo(SettingsPage)
+			for _, other in ipairs(Navigation.Tabs:GetChildren()) do
+				if other.Name ~= "InActive Template" and other.ClassName == "Frame" and other ~= SettingsTabButton then
+					tween(other.ImageLabel, {ImageColor3 = Color3.fromRGB(221,221,221)})
+					tween(other, {BackgroundTransparency = 1})
+					tween(other.UIStroke, {Transparency = 1})
+				end
+			end
+			Window.CurrentTab = "Settings"
+		end
+
+		SettingsTabButton.Interact.MouseButton1Click:Connect(function() SettingsTab:Activate() end)
+
+		-- Reaproveita as funções de Tab (Section, Button, ColorPicker, etc.) aplicadas na SettingsPage
+		local ProxyTab = Window:CreateTab({Name = "__SettingsProxy_DoNotUse"})
+		Navigation.Tabs["__SettingsProxy_DoNotUse"]:Destroy() -- some com o botão de nav, só queremos os métodos
+		Elements["__SettingsProxy_DoNotUse"]:Destroy()
+
+		-- Tema
+		ProxyTab:CreateSection("Theme")
+		local c1cp, c2cp, c3cp
+		c1cp = ProxyTab:CreateColorPicker({ Name = "Color 1", Color = Color3.fromRGB(117,164,206) })
+		c2cp = ProxyTab:CreateColorPicker({ Name = "Color 2", Color = Color3.fromRGB(123,201,201) })
+		c3cp = ProxyTab:CreateColorPicker({ Name = "Color 3", Color = Color3.fromRGB(224,138,184) })
+
+		local function UpdateTheme()
+			Poltergeist.ThemeGradient = ColorSequence.new{
+				ColorSequenceKeypoint.new(0, c1cp.Color),
+				ColorSequenceKeypoint.new(0.5, c2cp.Color),
+				ColorSequenceKeypoint.new(1, c3cp.Color)
+			}
+			PoltergeistUI.ThemeRemote.Value = not PoltergeistUI.ThemeRemote.Value
+		end
+		c1cp:Set({Callback = UpdateTheme})
+		c2cp:Set({Callback = UpdateTheme})
+		c3cp:Set({Callback = UpdateTheme})
+
+		ProxyTab:CreateSection("Presets")
+		for name, colors in pairs(PresetGradients) do
+			ProxyTab:CreateButton({
+				Name = name,
+				Callback = function()
+					c1cp:Set({Color = colors[1]})
+					c2cp:Set({Color = colors[2]})
+					c3cp:Set({Color = colors[3]})
+				end
+			})
+		end
+
+		ProxyTab:CreateSection("Configuration")
+		ProxyTab:CreateButton({
+			Name = "Save Configuration",
+			Description = "Saves your current settings.",
+			Callback = function()
+				local ok, err = Poltergeist:SaveConfig("autosave")
+				Poltergeist:Notification({
+					Title = "Settings",
+					Content = ok and "Configuration saved." or ("Failed to save: " .. tostring(err)),
+					Icon = ok and "check_circle" or "dangerous"
+				})
+			end
+		})
+		ProxyTab:CreateButton({
+			Name = "Reload Hub",
+			Description = "Reloads the interface.",
+			Callback = function()
+				Poltergeist:Notification({Title = "Settings", Content = "Reloading...", Icon = "autorenew"})
+				task.wait(0.5)
+				Poltergeist:Destroy()
+			end
+		})
+
+		ProxyTab:CreateSection("Feedback")
+		local feedbackText = ""
+		ProxyTab:CreateInput({
+			Name = "Your Feedback",
+			PlaceholderText = "Type your feedback here...",
+			Callback = function(text) feedbackText = text end
+		})
+		ProxyTab:CreateButton({
+			Name = "Send Feedback",
+			Callback = function()
+				Poltergeist:Notification({Title = "Feedback", Content = "Thanks for your feedback!", Icon = "favorite"})
+			end
+		})
+
+		-- Move o conteúdo criado no proxy pra dentro da página real de Settings
+		for _, child in ipairs(ProxyTab.Page:GetChildren()) do
+			if child.Name ~= "Title" then
+				child.Parent = SettingsPage
+			end
+		end
+		ProxyTab.Page:Destroy()
+
+		Window.Settings = SettingsTab
+		return SettingsTab
+	end
+	
 	function Window:CreateTab(TabSettings)
 
 		local Tab = {}
@@ -7467,6 +7595,27 @@ function Poltergeist:CreateWindow(WindowSettings)
 		PoltergeistUI.MobileSupport.Visible = false
 	end)
 	
+	local SettingsButton = Main.Controls.ToggleSize:Clone()
+	SettingsButton.Name = "SettingsButton"
+	SettingsButton.Parent = Main.Controls
+	SettingsButton.ImageLabel.Image = GetIcon("settings", "Material")
+	SettingsButton.Position = UDim2.new(
+		SearchButton.Position.X.Scale,
+		SearchButton.Position.X.Offset - (SearchButton.Size.X.Offset + 8),
+		SearchButton.Position.Y.Scale,
+		SearchButton.Position.Y.Offset
+	)
+
+	SettingsButton.ImageLabel.MouseButton1Click:Connect(function()
+		if Window.Settings then
+			Window.Settings:Activate()
+		else
+			Poltergeist:Notification({Title = "Settings", Content = "No settings tab has been created yet. Call Window:CreateSettings() first.", Icon = "dangerous"})
+		end
+	end)
+	SettingsButton["MouseEnter"]:Connect(function() tween(SettingsButton.ImageLabel, {ImageColor3 = Color3.new(1,1,1)}) end)
+	SettingsButton["MouseLeave"]:Connect(function() tween(SettingsButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)}) end)	
+
 	local SearchButton = Main.Controls.ToggleSize:Clone()
 	SearchButton.Name = "Search"
 	SearchButton.Parent = Main.Controls
