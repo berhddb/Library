@@ -23,7 +23,7 @@ Deity/dp4pv/x64x70 | Certain Scripting and Testing ig
 
 ]]
 
-local Release = "v1.2.7"
+local Release = "v1.1.6"
 
 local Poltergeist = {
 	Folder = "Poltergeist",
@@ -2535,7 +2535,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 	for i,v in pairs(Main.Controls:GetChildren()) do
 		v.Visible = false
 	end
-
+	
 	local PluginsButton = Main.Controls.ToggleSize:Clone()
 	PluginsButton.Name = "Plugins"
 	PluginsButton.Parent = Main.Controls
@@ -7457,7 +7457,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		Window.State = true
 		PoltergeistUI.MobileSupport.Visible = false
 	end)
-
+	
 	-- ================= Plugins layer =================
 
 	local PluginsPanel = nil
@@ -7624,7 +7624,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 	PluginsButton["MouseLeave"]:Connect(function()
 		tween(PluginsButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195, 195, 195)})
 	end)
-
+	
 	return Window
 end
 
