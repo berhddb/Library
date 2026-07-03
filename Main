@@ -1608,77 +1608,6 @@ local function GetIcon(icon, source)
 	end
 end
 
-local function ApplyTagBadges(Element, TagsList)
-	if not TagsList or #TagsList == 0 then return end
-
-	local BadgeHolder = Instance.new("Frame")
-	BadgeHolder.Name = "TagBadges"
-	BadgeHolder.BackgroundTransparency = 1
-	BadgeHolder.AnchorPoint = Vector2.new(1, 0)
-	BadgeHolder.Position = UDim2.new(1, -8, 0, 4)
-	BadgeHolder.Size = UDim2.new(0, 0, 0, 14)
-	BadgeHolder.AutomaticSize = Enum.AutomaticSize.X
-	BadgeHolder.ZIndex = 5
-	BadgeHolder.Parent = Element
-
-	local BadgeLayout = Instance.new("UIListLayout", BadgeHolder)
-	BadgeLayout.FillDirection = Enum.FillDirection.Horizontal
-	BadgeLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
-	BadgeLayout.Padding = UDim.new(0, 4)
-
-	for _, tagObj in ipairs(TagsList) do
-		if tagObj and tagObj.Name then
-			local Badge = Instance.new("TextLabel")
-			Badge.BackgroundColor3 = Color3.fromRGB(64, 61, 76)
-			Badge.BorderSizePixel = 0
-			Badge.AutomaticSize = Enum.AutomaticSize.X
-			Badge.Size = UDim2.new(0, 0, 0, 14)
-			Badge.Font = Enum.Font.GothamMedium
-			Badge.TextSize = 9
-			Badge.TextColor3 = Color3.fromRGB(210, 210, 210)
-			Badge.Text = tagObj.Name
-			Badge.ZIndex = 6
-			Badge.Parent = BadgeHolder
-
-			local BadgePadding = Instance.new("UIPadding", Badge)
-			BadgePadding.PaddingLeft = UDim.new(0, 5)
-			BadgePadding.PaddingRight = UDim.new(0, 5)
-
-			Instance.new("UICorner", Badge).CornerRadius = UDim.new(1, 0)
-		end
-	end
-end
-
-function Tab:_ApplyTagFilter()
-	local anyActive = false
-	for _ in pairs(Tab.ActiveTags) do anyActive = true break end
-
-	for element, tagMap in pairs(Tab.TaggedElements) do
-		if element and element.Parent then
-			if not anyActive then
-				element.Visible = true
-			else
-				local show = false
-				for tagId in pairs(Tab.ActiveTags) do
-					if tagMap[tagId] then show = true break end
-				end
-				element.Visible = show
-			end
-		end
-	end
-end
-
-function Tab:_RegisterTaggedElement(Element, TagsList)
-	if not TagsList or #TagsList == 0 then return end
-	local map = {}
-	for _, tagObj in ipairs(TagsList) do
-		if tagObj and tagObj.Id then map[tagObj.Id] = true end
-	end
-	Tab.TaggedElements[Element] = map
-	ApplyTagBadges(Element, TagsList)
-	Tab:_ApplyTagFilter()
-end
-
 local function RemoveTable(tablre, value)
 	for i,v in pairs(tablre) do
 		if tostring(v) == tostring(value) then
@@ -3300,84 +3229,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 		TabPage.Visible = true
 
 		Tab.Page = TabPage
-		Tab.Tags = {}
-		Tab.TaggedElements = {}
-		Tab.ActiveTags = {}
-		Tab.TagBar = nil
-
-		function Tab:CreateTag(Name)
-			if not Tab.TagBar then
-				Tab.TagBar = Instance.new("Frame")
-				Tab.TagBar.Name = "TagBar"
-				Tab.TagBar.BackgroundTransparency = 1
-				Tab.TagBar.Size = UDim2.new(1, -25, 0, 24)
-				Tab.TagBar.LayoutOrder = -99
-				Tab.TagBar.Parent = TabPage
-
-				local TagLayout = Instance.new("UIListLayout", Tab.TagBar)
-				TagLayout.FillDirection = Enum.FillDirection.Horizontal
-				TagLayout.SortOrder = Enum.SortOrder.LayoutOrder
-				TagLayout.Padding = UDim.new(0, 6)
-
-				-- Garante que a Title (se existir) fica sempre antes da barra de tags
-				if TabPage:FindFirstChild("Title") then
-					TabPage.Title.LayoutOrder = -100
-				end
-			end
-
-			local TagId = HttpService:GenerateGUID(false)
-			local TagObject = { Id = TagId, Name = Name, Active = false }
-
-			local Chip = Instance.new("TextButton")
-			Chip.Name = "Tag_" .. Name
-			Chip.AutomaticSize = Enum.AutomaticSize.X
-			Chip.Size = UDim2.new(0, 0, 0, 22)
-			Chip.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
-			Chip.BorderSizePixel = 0 -- remove borda nativa contextual
-			Chip.Text = Name
-			Chip.Font = Enum.Font.GothamMedium
-			Chip.TextSize = 11
-			Chip.TextColor3 = Color3.fromRGB(200, 200, 200)
-			Chip.AutoButtonColor = false
-			Chip.Parent = Tab.TagBar
-
-			local ChipPadding = Instance.new("UIPadding", Chip)
-			ChipPadding.PaddingLeft = UDim.new(0, 12)
-			ChipPadding.PaddingRight = UDim.new(0, 12)
-
-			Instance.new("UICorner", Chip).CornerRadius = UDim.new(1, 0)
-
-			local ChipStroke = Instance.new("UIStroke", Chip)
-			ChipStroke.Color = Color3.fromRGB(64, 61, 76)
-			ChipStroke.Thickness = 1
-			ChipStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border -- border real, não contextual
-
-			Chip.MouseEnter:Connect(function()
-				if not TagObject.Active then tween(ChipStroke, {Color = Color3.fromRGB(87, 84, 104)}) end
-			end)
-			Chip.MouseLeave:Connect(function()
-				if not TagObject.Active then tween(ChipStroke, {Color = Color3.fromRGB(64, 61, 76)}) end
-			end)
-
-			Chip.MouseButton1Click:Connect(function()
-				TagObject.Active = not TagObject.Active
-				if TagObject.Active then
-					Tab.ActiveTags[TagId] = true
-					tween(Chip, {BackgroundColor3 = Color3.fromRGB(224, 138, 175)})
-					tween(Chip, {TextColor3 = Color3.fromRGB(30, 28, 34)})
-					tween(ChipStroke, {Color = Color3.fromRGB(224, 138, 175)})
-				else
-					Tab.ActiveTags[TagId] = nil
-					tween(Chip, {BackgroundColor3 = Color3.fromRGB(32, 30, 38)})
-					tween(Chip, {TextColor3 = Color3.fromRGB(200, 200, 200)})
-					tween(ChipStroke, {Color = Color3.fromRGB(64, 61, 76)})
-				end
-				Tab:_ApplyTagFilter()
-			end)
-
-			table.insert(Tab.Tags, TagObject)
-			return TagObject
-		end
 		
 		if TabSettings.ShowTitle == false then
 			TabPage.UIPadding.PaddingTop = UDim.new(0,10)
@@ -3468,7 +3319,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 				ButtonSettings = Kwargify({
 					Name = "Button",
 					Description = nil,
-					Tags = {},
 					Callback = function()
 
 					end,
@@ -3694,7 +3544,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 					Range = {0, 200},
 					Increment = 1,
 					CurrentValue = 100,
-					Tags = {},
 					Callback = function(Value)
 
 					end,
@@ -3879,7 +3728,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 					Slider.Main.UIStroke.color.Color = Poltergeist.ThemeGradient
 				end)
 				
-				Tab:_RegisterTaggedElement(Slider, SliderSettings.Tags)
+				
 
 				return SliderV
 
@@ -3895,7 +3744,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 					Max = 100,
 					Value = 0,
 					DisplayType = "Percent", -- "Percent" ou "Values"
-					Tags = {},
 				}, ProgressSettings or {})
 
 				local ProgressV = { Settings = ProgressSettings }
@@ -4042,7 +3890,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				end
 
 				Poltergeist:MakeDetachable(Holder, ProgressSettings.Title, "show_chart")
-				Tab:_RegisterTaggedElement(Holder, ProgressSettings.Tags)
+				
 				
 				return ProgressV
 			end
@@ -5282,8 +5130,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 				ColorPickerSettings = Kwargify({
 					Name = "Color Picker",
-					Color = Color3.fromRGB(255,255,255),
-					Tags = {}, 
+					Color = Color3.fromRGB(255,255,255)
 					Callback = function(Value)
 						-- The function that takes place every time the color picker is moved/changed
 						-- The variable (Value) is a Color3fromRGB value based on which color is selected
@@ -5542,7 +5389,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 			ButtonSettings = Kwargify({
 				Name = "Button",
 				Description = nil,
-				Tags = {},
 				Callback = function()
 
 				end,
@@ -5639,7 +5485,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 			end
 			
 			Poltergeist:MakeDetachable(Button, ButtonSettings.Name, "smart_button")
-			Tab:_RegisterTaggedElement(Button, ButtonSettings.Tags)
+			
 			
 			RegisterSearchable(Button, ButtonSettings.Name, TabPage, Button.LayoutOrder)
 			
@@ -5766,7 +5612,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Range = {0, 200},
 				Increment = 1,
 				CurrentValue = 100,
-				Tags = {},
 				Callback = function(Value)
 
 				end,
@@ -5965,7 +5810,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Name = "Toggle",
 				Description = nil,
 				CurrentValue = false,
-				Tags = {},
 				Callback = function(Value)
 				end,
 			}, ToggleSettings or {})
@@ -6135,7 +5979,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Set(ToggleSettings.CurrentValue)
 				pcall(function() ToggleSettings.Callback(ToggleSettings.CurrentValue) end)
 			end)
-			Tab:_RegisterTaggedElement(Toggle, ToggleSettings.Tags)
 			RegisterSearchable(Toggle, ToggleSettings.Name, TabPage, Toggle.LayoutOrder)
 			
 			return ToggleV
@@ -6731,8 +6574,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Options = {"Option 1", "Option 2"},
 				CurrentOption = {"Option 1"},
 				MultipleOptions = false,
-				SpecialType = nil, -- currently onl player, might add more soon
-				Tags = {},
+				SpecialType = nil, -- currently onl player, might add more so
 				Callback = function(Options)
 					-- The function that takes place when the selected option is changed
 					-- The variable (Options) is a table of strings for the current selected options or a string if multioptions is false
@@ -7070,8 +6912,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			-- Poltergeist.Flags[DropdownSettings.Flag] = DropdownSettings
 
-			Poltergeist:MakeDetachable(Dropdown, DropdownSettings.Name, "arrow_drop_down_circle")
-			Tab:_RegisterTaggedElement(Dropdown, DropdownSettings.Tags)
+			Poltergeist:MakeDetachable(Dropdown, DropdownSettings.Name, "arrow_drop_down_circl
 			
 			return DropdownV
 
@@ -7320,8 +7161,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 			end
 
 			SafeCallback(ColorPickerSettings.Color)
-			
-			Tab:_RegisterTaggedElement(ColorPicker, ColorPickerSettings.Tags)
 			
 			return ColorPickerV
 		end
