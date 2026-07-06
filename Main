@@ -1849,7 +1849,7 @@ local function unpackt(array : table)
 end
 
 -- Interface Management
-local PoltergeistUI = isStudio and script.Parent:WaitForChild("Poltergeist UI") or game:GetObjects("rbxassetid://76511873688102")[1]
+local PoltergeistUI = isStudio and script.Parent:WaitForChild("Poltergeist UI") or game:GetObjects("rbxassetid://86467455075715")[1]
 
 local SizeBleh = nil
 
@@ -2174,17 +2174,13 @@ function Poltergeist:Notification(data) -- action e.g open messages
 end
 
 Poltergeist.SearchIndex = Poltergeist.SearchIndex or {}
-Poltergeist._SearchOrderCounter = Poltergeist._SearchOrderCounter or 0
 
-local function RegisterSearchable(Element, Title, OriginalParent)
-	Poltergeist._SearchOrderCounter = Poltergeist._SearchOrderCounter + 1
-	local order = Poltergeist._SearchOrderCounter
-	Element.LayoutOrder = order -- ordem explícita e única, travada na criação — reparentar nunca mais embaralha os irmãos
+local function RegisterSearchable(Element, Title, OriginalParent, OriginalLayoutOrder)
 	table.insert(Poltergeist.SearchIndex, {
 		Element = Element,
 		Title = Title,
 		OriginalParent = OriginalParent,
-		OriginalLayoutOrder = order
+		OriginalLayoutOrder = OriginalLayoutOrder
 	})
 end
 
@@ -2808,7 +2804,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		HomeTabPage.detailsholder.dashboard.Client.Title.Text = (isStudio and "Debugging (Studio)" or identifyexecutor()) or "Your Executor Does Not Support identifyexecutor."
 		for i,v in pairs(HomeTabSettings.SupportedExecutors) do
 			if isStudio then HomeTabPage.detailsholder.dashboard.Client.Subtitle.Text = "Poltergeist Interface Suite - Debugging Mode" break end
-			if v == identifyexecutor() then
+			if i == identifyexecutor() then
 				HomeTabPage.detailsholder.dashboard.Client.Subtitle.Text = "Your Executor Supports This Script."
 			else
 				HomeTabPage.detailsholder.dashboard.Client.Subtitle.Text = "Your Executor Isn't Officialy Supported By This Script."
@@ -2964,17 +2960,17 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 		SettingsTabButton.Interact.MouseButton1Click:Connect(function() SettingsTab:Activate() end)
 
-		-- Reaproveita os métodos de Tab (Section, Button, ColorPicker, etc.) aplicados na SettingsPage
+		-- Reaproveita as funções de Tab (Section, Button, ColorPicker, etc.) aplicadas na SettingsPage
 		local ProxyTab = Window:CreateTab({Name = "__SettingsProxy_DoNotUse"})
-		Navigation.Tabs["__SettingsProxy_DoNotUse"]:Destroy()
+		Navigation.Tabs["__SettingsProxy_DoNotUse"]:Destroy() -- some com o botão de nav, só queremos os métodos
 		Elements["__SettingsProxy_DoNotUse"]:Destroy()
 
-		-- ============== Tema ==============
+		-- Tema
 		ProxyTab:CreateSection("Theme")
 		local c1cp, c2cp, c3cp
-		c1cp = ProxyTab:CreateColorPicker({ Name = "Color 1", Color = Color3.fromRGB(117,164,206) }, "PoltergeistSettingsThemeC1")
-		c2cp = ProxyTab:CreateColorPicker({ Name = "Color 2", Color = Color3.fromRGB(123,201,201) }, "PoltergeistSettingsThemeC2")
-		c3cp = ProxyTab:CreateColorPicker({ Name = "Color 3", Color = Color3.fromRGB(224,138,184) }, "PoltergeistSettingsThemeC3")
+		c1cp = ProxyTab:CreateColorPicker({ Name = "Color 1", Color = Color3.fromRGB(117,164,206) })
+		c2cp = ProxyTab:CreateColorPicker({ Name = "Color 2", Color = Color3.fromRGB(123,201,201) })
+		c3cp = ProxyTab:CreateColorPicker({ Name = "Color 3", Color = Color3.fromRGB(224,138,184) })
 
 		local function UpdateTheme()
 			Poltergeist.ThemeGradient = ColorSequence.new{
@@ -2982,11 +2978,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 				ColorSequenceKeypoint.new(0.5, c2cp.Color),
 				ColorSequenceKeypoint.new(1, c3cp.Color)
 			}
-			for i,v in pairs(PoltergeistUI:GetDescendants()) do
-				if v.Name == "Theme" and v:IsA("UIGradient") then
-					v.Color = Poltergeist.ThemeGradient
-				end
-			end
 			PoltergeistUI.ThemeRemote.Value = not PoltergeistUI.ThemeRemote.Value
 		end
 		c1cp:Set({Callback = UpdateTheme})
@@ -3005,22 +2996,28 @@ function Poltergeist:CreateWindow(WindowSettings)
 			})
 		end
 
-		-- ============== Configuration (save/load real, reaproveitado do BuildConfigSection) ==============
-		ProxyTab:BuildConfigSection()
-
-		ProxyTab:CreateSection("Hub")
+		ProxyTab:CreateSection("Configuration")
 		ProxyTab:CreateButton({
-			Name = "Close Hub",
-			Description = "This close the hub, and if you need, reload.",
+			Name = "Save Configuration",
+			Description = "Saves your current settings.",
 			Callback = function()
-				Poltergeist:Notification({Title = "Settings", Content = "Closing...", Icon = "autorenew"})
+				local ok, err = Poltergeist:SaveConfig("autosave")
+				Poltergeist:Notification({
+					Title = "Settings",
+					Content = ok and "Configuration saved." or ("Failed to save: " .. tostring(err)),
+					Icon = ok and "check_circle" or "dangerous"
+				})
+			end
+		})
+		ProxyTab:CreateButton({
+			Name = "Reload Hub",
+			Description = "Reloads the interface.",
+			Callback = function()
+				Poltergeist:Notification({Title = "Settings", Content = "Reloading...", Icon = "autorenew"})
 				task.wait(0.5)
 				Poltergeist:Destroy()
 			end
 		})
-
-		-- ============== Feedback ==============
-		Poltergeist.FeedbackWebhook = Poltergeist.FeedbackWebhook or " https://discord.com/api/webhooks/1523476189367369808/_uIbXyrNgHFzL1Nr0XvgOVGbcTlrl2s-aUlVVGfvmXLlvXCIMUtGOo7vvjeArZsZNdh8" -- <-- cole o link do webhook do Discord aqui
 
 		ProxyTab:CreateSection("Feedback")
 		local feedbackText = ""
@@ -3032,41 +3029,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		ProxyTab:CreateButton({
 			Name = "Send Feedback",
 			Callback = function()
-				if feedbackText == "" then
-					Poltergeist:Notification({Title = "Feedback", Content = "Please type something before sending.", Icon = "report_problem"})
-					return
-				end
-				if Poltergeist.FeedbackWebhook == "" then
-					Poltergeist:Notification({Title = "Feedback", Content = "No webhook has been configured yet.", Icon = "dangerous"})
-					return
-				end
-				if not request then
-					Poltergeist:Notification({Title = "Feedback", Content = "Your executor doesn't support HTTP requests.", Icon = "dangerous"})
-					return
-				end
-
-				local ok, err = pcall(function()
-					request({
-						Url = Poltergeist.FeedbackWebhook,
-						Method = "POST",
-						Headers = {["Content-Type"] = "application/json"},
-						Body = HttpService:JSONEncode({
-							embeds = {{
-								title = "New Feedback",
-								description = feedbackText,
-								color = 14701999,
-								footer = {text = Players.LocalPlayer.Name .. " (" .. Players.LocalPlayer.UserId .. ")"}
-							}}
-						})
-					})
-				end)
-
-				if ok then
-					feedbackText = ""
-					Poltergeist:Notification({Title = "Feedback", Content = "Thanks for your feedback!", Icon = "favorite"})
-				else
-					Poltergeist:Notification({Title = "Feedback", Content = "Failed to send: " .. tostring(err), Icon = "dangerous"})
-				end
+				Poltergeist:Notification({Title = "Feedback", Content = "Thanks for your feedback!", Icon = "favorite"})
 			end
 		})
 
@@ -3614,7 +3577,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				return SliderV
 
 			end
-			--[[ Progress Bar
+			-- Progress (Visual Slider, não interativo)
 			function Section:CreateProgress(ProgressSettings)
 				TabPage.Position = UDim2.new(0,0,0,28)
 
@@ -3773,7 +3736,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Poltergeist:MakeDetachable(Holder, ProgressSettings.Title, "show_chart")
 
 				return ProgressV
-			end]]
+			end
 			-- Console
 			function Section:CreateConsole(ConsoleSettings)
 				TabPage.Position = UDim2.new(0,0,0,28)
@@ -5003,7 +4966,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			end
 
-			--[[ Color Picker
+			-- Color Picker
 			function Section:CreateColorPicker(ColorPickerSettings, Flag) -- by Rayfield/Throit
 				TabPage.Position = UDim2.new(0,0,0,28)
 				local ColorPickerV = {IgnoreClass = false, Class = "Colorpicker", Settings = ColorPickerSettings}
@@ -5021,7 +4984,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 					return string.format("#%02X%02X%02X", math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255))
 				end
 
-				ColorPickerV.Color = ColorPickerSettings.Color
+				ColorPickerV.Color = Color3ToHex(ColorPickerSettings.Color)
 
 				local closedsize = UDim2.new(0, 75, 0, 22)
 				local openedsize = UDim2.new(0, 219, 0, 129)
@@ -5249,7 +5212,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				SafeCallback(ColorPickerSettings.Color)
 
 				return ColorPickerV
-			end]]
+			end
 
 			return Section
 
@@ -6791,7 +6754,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 		end
 
-		--[[Color Picker
+		-- Color Picker
 		function Tab:CreateColorPicker(ColorPickerSettings, Flag) -- by Rayfield/Throit
 			local ColorPickerV = {IgnoreClass = false, Class = "Colorpicker", Settings = ColorPickerSettings}
 
@@ -6808,7 +6771,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				return string.format("#%02X%02X%02X", math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255))
 			end
 
-			ColorPickerV.Color = ColorPickerSettings.Color
+			ColorPickerV.Color = Color3ToHex(ColorPickerSettings.Color)
 
 			local closedsize = UDim2.new(0, 75, 0, 22)
 			local openedsize = UDim2.new(0, 219, 0, 129)
@@ -7036,7 +6999,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 			SafeCallback(ColorPickerSettings.Color)
 
 			return ColorPickerV
-		end]]
+		end
 
 
 		function Tab:BuildConfigSection()
@@ -7752,10 +7715,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 		Row.Size = UDim2.new(1, 0, 0, 56)
 		Row.LayoutOrder = order
 		Row.Parent = PluginsPanel
-		
-		local UIGradient = Instance.new("UIGradient")
-		UIGradient.Name = "Theme"
-		UIGradient.Parent = Row
 
 		Instance.new("UICorner", Row).CornerRadius = UDim.new(0, 6)
 		local RowStroke = Instance.new("UIStroke", Row)
@@ -7864,11 +7823,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		local PPStroke = Instance.new("UIStroke", PluginsPanel)
 		PPStroke.Color = Color3.fromRGB(64, 61, 76)
 		PPStroke.Transparency = 0.5
-		
-		local UIGradient = Instance.new("UIGradient")
-		UIGradient.Name = "Theme"
-		UIGradient.Parent = Row
-		
+
 		local PPPadding = Instance.new("UIPadding", PluginsPanel)
 		PPPadding.PaddingTop = UDim.new(0, 16)
 		PPPadding.PaddingBottom = UDim.new(0, 16)
