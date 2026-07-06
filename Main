@@ -2547,7 +2547,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 	end
 
 	local PluginsButton = Main.Controls.Plugins
-	
+
 	Main:GetPropertyChangedSignal("Position"):Connect(function()
 		Main.Parent.ShadowHolder.Position = Main.Position
 	end)
@@ -2808,7 +2808,10 @@ function Poltergeist:CreateWindow(WindowSettings)
 		-- ===== CÓDIGO CORRIGIDO =====
 		-- Verifica se o executor é suportado
 		local isSupported = false
-		local executorName = identifyexecutor()
+		local executorName
+		if not isStudio then
+			executorName = identifyexecutor()
+		end
 
 		-- Modo Studio sempre é suportado
 		if isStudio then
@@ -2941,25 +2944,23 @@ function Poltergeist:CreateWindow(WindowSettings)
 				-- Region
 				HomeTabPage.detailsholder.dashboard.Server.Region.Value.Text = Localization:GetCountryRegionForPlayerAsync(Players.LocalPlayer)
 
-				-- Copy JobId
-				local CopyJobId = HomeTabPage.detailsholder.dashboard.Server.JobId
-				local CopyJobIdButton = CopyJobId:FindFirstChild("Interact")
-				if CopyJobIdButton then
-					CopyJobIdButton.MouseButton1Click:Connect(function()
-						setclipboard(tostring(game.JobId))
-						Poltergeist:Notification({
-							Title = "Job Id",
-							Content = "Job Id Copied!",
-							Icon = "check_circle"
-						})
-					end)
-				end
-
 				checkFriends()
 			end
 		end)()
 
-		-- Stolen From Sirius Stuff ends here
+		-- Copy JobId
+		local CopyJobId = HomeTabPage.detailsholder.dashboard.Server.JobId
+		local CopyJobIdButton = CopyJobId:FindFirstChild("Interact")
+		if CopyJobIdButton then
+			CopyJobIdButton.MouseButton1Click:Connect(function()
+				setclipboard(tostring(game.JobId))
+				Poltergeist:Notification({
+					Title = "Job Id",
+					Content = "Job Id Copied!",
+					Icon = "check_circle"
+				})
+			end)
+		end
 
 	end
 
@@ -7644,20 +7645,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 		tween(Main.Controls.ToggleSize.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)})
 	end)
 
-	Main.Controls.Theme.ImageLabel.MouseButton1Click:Connect(function()
-		if Window.Settings then
-			Window.Settings:Activate()
-			Elements.Settings.CanvasPosition = Vector2.new(0,698)
-		end
-	end)
-	Main.Controls.Theme["MouseEnter"]:Connect(function()
-		tween(Main.Controls.Theme.ImageLabel, {ImageColor3 = Color3.new(1,1,1)})
-	end)
-	Main.Controls.Theme["MouseLeave"]:Connect(function()
-		tween(Main.Controls.Theme.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)})
-	end)	
-
-
 	PoltergeistUI.MobileSupport.Interact.MouseButton1Click:Connect(function()
 		Unhide(Main, Window.CurrentTab)
 		dragBar.Visible = true
@@ -7666,11 +7653,11 @@ function Poltergeist:CreateWindow(WindowSettings)
 	end)
 
 	local SearchButton = Main.Controls.Search
-	
+
 	local SearchBar = Main.Frame
-	
+
 	local SearchBox = SearchBar.TextBox
-	
+
 	local SearchResultsPage = Elements.Template:Clone()
 	SearchResultsPage.Name = "SearchResults"
 	SearchResultsPage.Title.Text = "Search Results"
@@ -7685,7 +7672,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 			end
 		end
 	end
-	
+
 	local searchActive = false
 	local currentlyMoved = {}
 
@@ -7794,7 +7781,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		Row.Size = UDim2.new(1, 0, 0, 56)
 		Row.LayoutOrder = order
 		Row.Parent = PluginsPanel
-		
+
 		local UIGradient = Instance.new("UIGradient")
 		UIGradient.Name = "Theme"
 		UIGradient.Parent = Row
@@ -7906,11 +7893,11 @@ function Poltergeist:CreateWindow(WindowSettings)
 		local PPStroke = Instance.new("UIStroke", PluginsPanel)
 		PPStroke.Color = Color3.fromRGB(64, 61, 76)
 		PPStroke.Transparency = 0.5
-		
+
 		local UIGradient = Instance.new("UIGradient")
 		UIGradient.Name = "Theme"
-		UIGradient.Parent = Row
-		
+		UIGradient.Parent = PluginsPanel
+
 		local PPPadding = Instance.new("UIPadding", PluginsPanel)
 		PPPadding.PaddingTop = UDim.new(0, 16)
 		PPPadding.PaddingBottom = UDim.new(0, 16)
@@ -8073,7 +8060,7 @@ if isStudio then
 
 	Window:CreateHomeTab()
 	Window:CreateSettings()
-	
+
 	local bleh =Tabs.Debug:CreateColorPicker()
 	Tabs.Debug:CreateButton({
 		Callback = function()
