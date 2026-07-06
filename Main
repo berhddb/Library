@@ -23,7 +23,7 @@ Deity/dp4pv/x64x70 | Certain Scripting and Testing ig
 
 ]]
 
-local Release = "v1.2.7"
+local Release = "v1.1.7"
 
 local Poltergeist = {
 	Folder = "Poltergeist",
