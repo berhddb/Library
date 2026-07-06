@@ -2739,7 +2739,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 	wait(0.4)
 	LoadingFrame.Visible = false
 
-	Draggable(Dragger, Main)
+	Draggable(Dragger, Main)https://discord.gg/c5mZwdzbHx
 	Draggable(PoltergeistUI.MobileSupport, PoltergeistUI.MobileSupport)
 	if dragBar then Draggable(dragInteract, Main, true, 255) end
 
@@ -2802,7 +2802,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 		-- ========== EXECUTOR STATUS (CORRIGIDO) ==========
 		local executorName = isStudio and "Studio" or identifyexecutor()
-		HomeTabPage.detailsholder.dashboard.Client.Title.Text = (isStudio and "Debugging (Studio)" or executorName) or "Your Executor Does Not Support identifyexecutor."
+		HomeTabPage.detailsholder.dashboard.Client.Title.Text = (isStudio and "Debugging (Studio)" or executorName) or "Youraaaaa Executor Does Not Support identifyexecutor."
 
 		-- Verifica se o executor atual está na lista de suportados
 		local isSupported = false
