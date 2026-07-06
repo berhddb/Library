@@ -2543,7 +2543,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 	end
 
 	local PluginsButton = Main.Controls.Plugins
-	
+
 	Main:GetPropertyChangedSignal("Position"):Connect(function()
 		Main.Parent.ShadowHolder.Position = Main.Position
 	end)
@@ -2910,7 +2910,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				HomeTabPage.detailsholder.dashboard.Server.Region.Value.Text = Localization:GetCountryRegionForPlayerAsync(Players.LocalPlayer)
 
 				checkFriends()
-				
+
 				-- Copy JobId
 				local CopyJobId = HomeTabPage.detailsholder.dashboard.Server.JobId
 				local CopyJobIdButton = CopyJobId:FindFirstChild("Interact")
@@ -2919,12 +2919,12 @@ function Poltergeist:CreateWindow(WindowSettings)
 						setclipboard(game.JobId)
 						Poltergeist:Notification({
 							Title = "Job Id",
-							Content = "Job Id Copied!",
+							Content = "Job Id ",
 							Icon = "check_circle"
 						})
 					end)
 				end
-				
+
 			end
 		end)
 
@@ -7602,11 +7602,11 @@ function Poltergeist:CreateWindow(WindowSettings)
 	end)
 
 	local SearchButton = Main.Controls.Search
-	
+
 	local SearchBar = Main.Frame
-	
+
 	local SearchBox = SearchBar.TextBox
-	
+
 	local SearchResultsPage = Elements.Template:Clone()
 	SearchResultsPage.Name = "SearchResults"
 	SearchResultsPage.Title.Text = "Search Results"
@@ -7621,7 +7621,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 			end
 		end
 	end
-	
+
 	local searchActive = false
 	local currentlyMoved = {}
 
@@ -8001,7 +8001,7 @@ if isStudio then
 
 	Window:CreateHomeTab()
 	Window:CreateSettings()
-	
+
 	local bleh =Tabs.Debug:CreateColorPicker()
 	Tabs.Debug:CreateButton({
 		Callback = function()
