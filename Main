@@ -51,6 +51,7 @@ local website = "github.com/Nebula-Softworks"
 
 if RunService:IsStudio() then
 	isStudio = true
+	print('yes')
 end
 
 -- Credits To Latte Softworks And qweery for Lucide And Material Icons Respectively.
@@ -1848,7 +1849,7 @@ local function unpackt(array : table)
 end
 
 -- Interface Management
-local PoltergeistUI = isStudio and script.Parent:WaitForChild("Poltergeist UI") or game:GetObjects("rbxassetid://86467455075715")[1]
+local PoltergeistUI = isStudio and script.Parent:WaitForChild("Poltergeist UI") or game:GetObjects("rbxassetid://93962182713340")[1]
 
 local SizeBleh = nil
 
@@ -2173,13 +2174,17 @@ function Poltergeist:Notification(data) -- action e.g open messages
 end
 
 Poltergeist.SearchIndex = Poltergeist.SearchIndex or {}
+Poltergeist._SearchOrderCounter = Poltergeist._SearchOrderCounter or 0
 
-local function RegisterSearchable(Element, Title, OriginalParent, OriginalLayoutOrder)
+local function RegisterSearchable(Element, Title, OriginalParent)
+	Poltergeist._SearchOrderCounter = Poltergeist._SearchOrderCounter + 1
+	local order = Poltergeist._SearchOrderCounter
+	Element.LayoutOrder = order -- ordem explícita e única, travada na criação — reparentar nunca mais embaralha os irmãos
 	table.insert(Poltergeist.SearchIndex, {
 		Element = Element,
 		Title = Title,
 		OriginalParent = OriginalParent,
-		OriginalLayoutOrder = OriginalLayoutOrder
+		OriginalLayoutOrder = order
 	})
 end
 
@@ -2541,18 +2546,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 		v.Visible = false
 	end
 
-	local PluginsButton = Main.Controls.ToggleSize:Clone()
-	PluginsButton.Name = "Plugins"
-	PluginsButton.Parent = Main.Controls
-	PluginsButton.ImageLabel.Image = GetIcon("extension", "Material")
-
-	PluginsButton.Position = UDim2.new(
-		Main.Controls.ToggleSize.Position.X.Scale,
-		Main.Controls.ToggleSize.Position.X.Offset - (Main.Controls.ToggleSize.Size.X.Offset + 8),
-		Main.Controls.ToggleSize.Position.Y.Scale,
-		Main.Controls.ToggleSize.Position.Y.Offset
-	)
-
+	local PluginsButton = Main.Controls.Plugins
+	
 	Main:GetPropertyChangedSignal("Position"):Connect(function()
 		Main.Parent.ShadowHolder.Position = Main.Position
 	end)
@@ -2925,7 +2920,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		-- Stolen From Sirius Stuff ends here
 
 	end
-	
+
 	function Window:CreateSettings(SettingsTabSettings)
 		SettingsTabSettings = Kwargify({
 			Icon = "settings",
@@ -2937,7 +2932,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		SettingsTabButton.TextLabel.Text = "Settings"
 		SettingsTabButton.Parent = Navigation.Tabs
 		SettingsTabButton.ImageLabel.Image = GetIcon(SettingsTabSettings.Icon, SettingsTabSettings.ImageSource)
-		SettingsTabButton.Visible = true
+		SettingsTabButton.Visible = false
 
 		local SettingsPage = Elements.Template:Clone()
 		SettingsPage.Name = "Settings"
@@ -2969,17 +2964,17 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 		SettingsTabButton.Interact.MouseButton1Click:Connect(function() SettingsTab:Activate() end)
 
-		-- Reaproveita as funções de Tab (Section, Button, ColorPicker, etc.) aplicadas na SettingsPage
+		-- Reaproveita os métodos de Tab (Section, Button, ColorPicker, etc.) aplicados na SettingsPage
 		local ProxyTab = Window:CreateTab({Name = "__SettingsProxy_DoNotUse"})
-		Navigation.Tabs["__SettingsProxy_DoNotUse"]:Destroy() -- some com o botão de nav, só queremos os métodos
+		Navigation.Tabs["__SettingsProxy_DoNotUse"]:Destroy()
 		Elements["__SettingsProxy_DoNotUse"]:Destroy()
 
-		-- Tema
+		-- ============== Tema ==============
 		ProxyTab:CreateSection("Theme")
 		local c1cp, c2cp, c3cp
-		c1cp = ProxyTab:CreateColorPicker({ Name = "Color 1", Color = Color3.fromRGB(117,164,206) })
-		c2cp = ProxyTab:CreateColorPicker({ Name = "Color 2", Color = Color3.fromRGB(123,201,201) })
-		c3cp = ProxyTab:CreateColorPicker({ Name = "Color 3", Color = Color3.fromRGB(224,138,184) })
+		c1cp = ProxyTab:CreateColorPicker({ Name = "Color 1", Color = Color3.fromRGB(117,164,206) }, "PoltergeistSettingsThemeC1")
+		c2cp = ProxyTab:CreateColorPicker({ Name = "Color 2", Color = Color3.fromRGB(123,201,201) }, "PoltergeistSettingsThemeC2")
+		c3cp = ProxyTab:CreateColorPicker({ Name = "Color 3", Color = Color3.fromRGB(224,138,184) }, "PoltergeistSettingsThemeC3")
 
 		local function UpdateTheme()
 			Poltergeist.ThemeGradient = ColorSequence.new{
@@ -2987,6 +2982,11 @@ function Poltergeist:CreateWindow(WindowSettings)
 				ColorSequenceKeypoint.new(0.5, c2cp.Color),
 				ColorSequenceKeypoint.new(1, c3cp.Color)
 			}
+			for i,v in pairs(PoltergeistUI:GetDescendants()) do
+				if v.Name == "Theme" and v:IsA("UIGradient") then
+					v.Color = Poltergeist.ThemeGradient
+				end
+			end
 			PoltergeistUI.ThemeRemote.Value = not PoltergeistUI.ThemeRemote.Value
 		end
 		c1cp:Set({Callback = UpdateTheme})
@@ -3005,28 +3005,22 @@ function Poltergeist:CreateWindow(WindowSettings)
 			})
 		end
 
-		ProxyTab:CreateSection("Configuration")
+		-- ============== Configuration (save/load real, reaproveitado do BuildConfigSection) ==============
+		ProxyTab:BuildConfigSection()
+
+		ProxyTab:CreateSection("Hub")
 		ProxyTab:CreateButton({
-			Name = "Save Configuration",
-			Description = "Saves your current settings.",
+			Name = "Close Hub",
+			Description = "This close the hub, and if you need, reload.",
 			Callback = function()
-				local ok, err = Poltergeist:SaveConfig("autosave")
-				Poltergeist:Notification({
-					Title = "Settings",
-					Content = ok and "Configuration saved." or ("Failed to save: " .. tostring(err)),
-					Icon = ok and "check_circle" or "dangerous"
-				})
-			end
-		})
-		ProxyTab:CreateButton({
-			Name = "Reload Hub",
-			Description = "Reloads the interface.",
-			Callback = function()
-				Poltergeist:Notification({Title = "Settings", Content = "Reloading...", Icon = "autorenew"})
+				Poltergeist:Notification({Title = "Settings", Content = "Closing...", Icon = "autorenew"})
 				task.wait(0.5)
 				Poltergeist:Destroy()
 			end
 		})
+
+		-- ============== Feedback ==============
+		Poltergeist.FeedbackWebhook = Poltergeist.FeedbackWebhook or " https://discord.com/api/webhooks/1523476189367369808/_uIbXyrNgHFzL1Nr0XvgOVGbcTlrl2s-aUlVVGfvmXLlvXCIMUtGOo7vvjeArZsZNdh8" -- <-- cole o link do webhook do Discord aqui
 
 		ProxyTab:CreateSection("Feedback")
 		local feedbackText = ""
@@ -3038,7 +3032,41 @@ function Poltergeist:CreateWindow(WindowSettings)
 		ProxyTab:CreateButton({
 			Name = "Send Feedback",
 			Callback = function()
-				Poltergeist:Notification({Title = "Feedback", Content = "Thanks for your feedback!", Icon = "favorite"})
+				if feedbackText == "" then
+					Poltergeist:Notification({Title = "Feedback", Content = "Please type something before sending.", Icon = "report_problem"})
+					return
+				end
+				if Poltergeist.FeedbackWebhook == "" then
+					Poltergeist:Notification({Title = "Feedback", Content = "No webhook has been configured yet.", Icon = "dangerous"})
+					return
+				end
+				if not request then
+					Poltergeist:Notification({Title = "Feedback", Content = "Your executor doesn't support HTTP requests.", Icon = "dangerous"})
+					return
+				end
+
+				local ok, err = pcall(function()
+					request({
+						Url = Poltergeist.FeedbackWebhook,
+						Method = "POST",
+						Headers = {["Content-Type"] = "application/json"},
+						Body = HttpService:JSONEncode({
+							embeds = {{
+								title = "New Feedback",
+								description = feedbackText,
+								color = 14701999,
+								footer = {text = Players.LocalPlayer.Name .. " (" .. Players.LocalPlayer.UserId .. ")"}
+							}}
+						})
+					})
+				end)
+
+				if ok then
+					feedbackText = ""
+					Poltergeist:Notification({Title = "Feedback", Content = "Thanks for your feedback!", Icon = "favorite"})
+				else
+					Poltergeist:Notification({Title = "Feedback", Content = "Failed to send: " .. tostring(err), Icon = "dangerous"})
+				end
 			end
 		})
 
@@ -3053,7 +3081,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		Window.Settings = SettingsTab
 		return SettingsTab
 	end
-	
+
 	function Window:CreateTab(TabSettings)
 
 		local Tab = {}
@@ -3268,7 +3296,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 				Poltergeist:MakeDetachable(Button, ButtonSettings.Name, "smart_button")
 				RegisterSearchable(Button, ButtonSettings.Name, TabPage, Button.LayoutOrder) -- exemplo pro Button; troque o nome nos demais
-				
+
 				return ButtonV
 			end
 
@@ -3586,7 +3614,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				return SliderV
 
 			end
-			-- Progress (Visual Slider, não interativo)
+			--[[ Progress Bar
 			function Section:CreateProgress(ProgressSettings)
 				TabPage.Position = UDim2.new(0,0,0,28)
 
@@ -3745,7 +3773,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Poltergeist:MakeDetachable(Holder, ProgressSettings.Title, "show_chart")
 
 				return ProgressV
-			end
+			end]]
 			-- Console
 			function Section:CreateConsole(ConsoleSettings)
 				TabPage.Position = UDim2.new(0,0,0,28)
@@ -4975,7 +5003,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			end
 
-			-- Color Picker
+			--[[ Color Picker
 			function Section:CreateColorPicker(ColorPickerSettings, Flag) -- by Rayfield/Throit
 				TabPage.Position = UDim2.new(0,0,0,28)
 				local ColorPickerV = {IgnoreClass = false, Class = "Colorpicker", Settings = ColorPickerSettings}
@@ -4993,7 +5021,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 					return string.format("#%02X%02X%02X", math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255))
 				end
 
-				ColorPickerV.Color = Color3ToHex(ColorPickerSettings.Color)
+				ColorPickerV.Color = ColorPickerSettings.Color
 
 				local closedsize = UDim2.new(0, 75, 0, 22)
 				local openedsize = UDim2.new(0, 219, 0, 129)
@@ -5221,7 +5249,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				SafeCallback(ColorPickerSettings.Color)
 
 				return ColorPickerV
-			end
+			end]]
 
 			return Section
 
@@ -5335,9 +5363,9 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Button.Visible = false
 				Button:Destroy()
 			end
-			
+
 			RegisterSearchable(Button, ButtonSettings.Name, TabPage, Button.LayoutOrder) -- exemplo pro Button; troque o nome nos demais
-			
+
 			return ButtonV
 		end
 
@@ -5825,7 +5853,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			Poltergeist:MakeDetachable(Toggle, ToggleSettings.Name, "toggle_on")
 			RegisterSearchable(Toggle, ToggleSettings.Name, TabPage, Toggle.LayoutOrder)
-			
+
 			return ToggleV
 
 		end
@@ -6763,7 +6791,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 		end
 
-		-- Color Picker
+		--[[Color Picker
 		function Tab:CreateColorPicker(ColorPickerSettings, Flag) -- by Rayfield/Throit
 			local ColorPickerV = {IgnoreClass = false, Class = "Colorpicker", Settings = ColorPickerSettings}
 
@@ -6780,7 +6808,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				return string.format("#%02X%02X%02X", math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255))
 			end
 
-			ColorPickerV.Color = Color3ToHex(ColorPickerSettings.Color)
+			ColorPickerV.Color = ColorPickerSettings.Color
 
 			local closedsize = UDim2.new(0, 75, 0, 22)
 			local openedsize = UDim2.new(0, 219, 0, 129)
@@ -7008,7 +7036,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 			SafeCallback(ColorPickerSettings.Color)
 
 			return ColorPickerV
-		end
+		end]]
 
 
 		function Tab:BuildConfigSection()
@@ -7595,51 +7623,27 @@ function Poltergeist:CreateWindow(WindowSettings)
 		PoltergeistUI.MobileSupport.Visible = false
 	end)
 
-	local SearchButton = Main.Controls.ToggleSize:Clone()
-	SearchButton.Name = "Search"
-	SearchButton.Parent = Main.Controls
-	SearchButton.ImageLabel.Image = GetIcon("search", "Material")
-	SearchButton.Position = UDim2.new(
-		PluginsButton.Position.X.Scale,
-		PluginsButton.Position.X.Offset - (PluginsButton.Size.X.Offset + 8),
-		PluginsButton.Position.Y.Scale,
-		PluginsButton.Position.Y.Offset
-	)
-
-	local SearchBar = Instance.new("Frame")
-	SearchBar.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
-	SearchBar.BorderSizePixel = 0
-	SearchBar.AnchorPoint = Vector2.new(0.5, 0)
-	SearchBar.Position = UDim2.new(0.5, 0, 0, 44)
-	SearchBar.Size = UDim2.new(0, 240, 0, 30)
-	SearchBar.ZIndex = 300
-	SearchBar.Visible = false
-	SearchBar.Parent = Main
-	Instance.new("UICorner", SearchBar).CornerRadius = UDim.new(0, 6)
-	local SearchStroke = Instance.new("UIStroke", SearchBar)
-	SearchStroke.Color = Color3.fromRGB(64, 61, 76)
-	SearchStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
-	local SearchBox = Instance.new("TextBox")
-	SearchBox.BackgroundTransparency = 1
-	SearchBox.Position = UDim2.new(0, 12, 0, 0)
-	SearchBox.Size = UDim2.new(1, -24, 1, 0)
-	SearchBox.Font = Enum.Font.Gotham
-	SearchBox.TextSize = 13
-	SearchBox.TextColor3 = Color3.fromRGB(230, 230, 230)
-	SearchBox.PlaceholderText = "Search..."
-	SearchBox.Text = ""
-	SearchBox.TextXAlignment = Enum.TextXAlignment.Left
-	SearchBox.ClearTextOnFocus = false
-	SearchBox.ZIndex = 301
-	SearchBox.Parent = SearchBar
-
+	local SearchButton = Main.Controls.Search
+	
+	local SearchBar = Main.Frame
+	
+	local SearchBox = SearchBar.TextBox
+	
 	local SearchResultsPage = Elements.Template:Clone()
 	SearchResultsPage.Name = "SearchResults"
 	SearchResultsPage.Title.Text = "Search Results"
 	SearchResultsPage.Visible = false
 	SearchResultsPage.Parent = Elements
-
+	for i,v in pairs(SearchResultsPage:GetChildren()) do
+		if v:IsA("TextLabel") or v:IsA("ImageButton") or v:IsA("Frame") then
+			if v.Name == "Title" then
+				v.Text = "Search Results"
+			else
+				v:Destroy()
+			end
+		end
+	end
+	
 	local searchActive = false
 	local currentlyMoved = {}
 
@@ -7693,29 +7697,25 @@ function Poltergeist:CreateWindow(WindowSettings)
 	end)
 
 	SearchButton.ImageLabel.MouseButton1Click:Connect(function()
-		SearchBar.Visible = not SearchBar.Visible
-		if SearchBar.Visible then
+		if not SearchBar.Visible then
+			SearchBar.Visible = true
 			SearchBox:CaptureFocus()
+			SearchBar:TweenSize(UDim2.new(0, -240, 0, 30), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+			Main.Title:TweenSize(UDim2.new(0.3, 0, 0, 22), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
 		else
 			SearchBox.Text = ""
+			SearchBar:TweenSize(UDim2.new(0, 0, 0, 30), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
+			Main.Title:TweenSize(UDim2.new(1, -204,0, 22), Enum.EasingDirection.Out, Enum.EasingStyle.Quad, 0.2, true)
 			ClearSearch()
+			task.wait(0.2)
+			SearchBar.Visible = false
 		end
 	end)
 
 	SearchButton["MouseEnter"]:Connect(function() tween(SearchButton.ImageLabel, {ImageColor3 = Color3.new(1,1,1)}) end)
 	SearchButton["MouseLeave"]:Connect(function() tween(SearchButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)}) end)
-	
-	local SettingsButton = Main.Controls.ToggleSize:Clone()
-	SettingsButton.Name = "SettingsButton"
-	SettingsButton.Parent = Main.Controls
-	SettingsButton.ImageLabel.Image = GetIcon("settings", "Material")
-	SettingsButton.Position = UDim2.new(
-		SearchButton.Position.X.Scale,
-		SearchButton.Position.X.Offset - (SearchButton.Size.X.Offset + 8),
-		SearchButton.Position.Y.Scale,
-		SearchButton.Position.Y.Offset
-	)
 
+	local SettingsButton = Main.Controls.SettingsButton
 	SettingsButton.ImageLabel.MouseButton1Click:Connect(function()
 		if Window.Settings then
 			Window.Settings:Activate()
@@ -7725,7 +7725,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 	end)
 	SettingsButton["MouseEnter"]:Connect(function() tween(SettingsButton.ImageLabel, {ImageColor3 = Color3.new(1,1,1)}) end)
 	SettingsButton["MouseLeave"]:Connect(function() tween(SettingsButton.ImageLabel, {ImageColor3 = Color3.fromRGB(195,195,195)}) end)	
-	
+
 	-- ================= Plugins layer =================
 
 	local PluginsPanel = nil
@@ -7752,6 +7752,10 @@ function Poltergeist:CreateWindow(WindowSettings)
 		Row.Size = UDim2.new(1, 0, 0, 56)
 		Row.LayoutOrder = order
 		Row.Parent = PluginsPanel
+		
+		local UIGradient = Instance.new("UIGradient")
+		UIGradient.Name = "Theme"
+		UIGradient.Parent = Row
 
 		Instance.new("UICorner", Row).CornerRadius = UDim.new(0, 6)
 		local RowStroke = Instance.new("UIStroke", Row)
@@ -7860,7 +7864,11 @@ function Poltergeist:CreateWindow(WindowSettings)
 		local PPStroke = Instance.new("UIStroke", PluginsPanel)
 		PPStroke.Color = Color3.fromRGB(64, 61, 76)
 		PPStroke.Transparency = 0.5
-
+		
+		local UIGradient = Instance.new("UIGradient")
+		UIGradient.Name = "Theme"
+		UIGradient.Parent = Row
+		
 		local PPPadding = Instance.new("UIPadding", PluginsPanel)
 		PPPadding.PaddingTop = UDim.new(0, 16)
 		PPPadding.PaddingBottom = UDim.new(0, 16)
@@ -7947,14 +7955,14 @@ function Poltergeist:Destroy()
 end
 
 if isStudio then
-	local Window = Poltergeist:CreateWindow({
-		Name = "Nebula Client - Poltergeist Hub | Blade Ball",
-		Subtitle = "by Nebula Softworks",
-		LogoID = "123795201100198",
+	--[[local Window = Poltergeist:CreateWindow({
+		Name = "Poltergeist Hub",
+		Subtitle = "by Poltergeist Hub",
+		LogoID = "101636243364181",
 		LoadingEnabled = true,
-		LoadingTitle = "Nebula Client (Poltergeist Hub)",
+		LoadingTitle = "Poltergeist Hub",
 		LoadingSubtitle = "Loading script for Blade Ball",
-		KeySystem = true,
+		KeySystem = false,
 		KeySettings = {
 			Title = "Nebula Client | Key System",
 			Subtitle = "Blade Ball",
@@ -7968,16 +7976,16 @@ if isStudio then
 				Parameter = "" -- for discord, add the invite link like home tab. for link, type the link of ur key sys
 			}
 		}
-	})
+	})]]
 
-	--[[local Window = Poltergeist:CreateWindow({
+	local Window = Poltergeist:CreateWindow({
 		Name = "Poltergeist Example Window",
 		Subtitle = "Test",
 		LogoID = "6031097225",
 		LoadingEnabled = true,
 		LoadingTitle = "Poltergeist Interface Suite",
 		LoadingSubtitle = "by Nebula Softworks",
-		KeySystem = true,
+		KeySystem = false,
 		KeySettings = {
 			Title = "Poltergeist Example Key",
 			Subtitle = "Key System",
@@ -8022,6 +8030,8 @@ if isStudio then
 
 
 	Window:CreateHomeTab()
+	Window:CreateSettings()
+	
 	local bleh =Tabs.Debug:CreateColorPicker()
 	Tabs.Debug:CreateButton({
 		Callback = function()
@@ -8155,7 +8165,7 @@ if isStudio then
 	s:CreateDropdown()
 
 	Tabs.Premium:BuildConfigSection()
-	Tabs.Premium:BuildThemeSection()]]
+	Tabs.Premium:BuildThemeSection()
 end
 
 -- THIS IS THE DEBUG DEMO, ONLY USED WHEN TESTING NEW ELEMENTS AND CODE
