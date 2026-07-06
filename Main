@@ -2804,7 +2804,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		HomeTabPage.detailsholder.dashboard.Client.Title.Text = (isStudio and "Debugging (Studio)" or identifyexecutor()) or "Your Executor Does Not Support identifyexecutor."
 		for i,v in pairs(HomeTabSettings.SupportedExecutors) do
 			if isStudio then HomeTabPage.detailsholder.dashboard.Client.Subtitle.Text = "Poltergeist Interface Suite - Debugging Mode" break end
-			if i == identifyexecutor() then
+			if v == identifyexecutor() then
 				HomeTabPage.detailsholder.dashboard.Client.Subtitle.Text = "Your Executor Supports This Script."
 			else
 				HomeTabPage.detailsholder.dashboard.Client.Subtitle.Text = "Your Executor Isn't Officialy Supported By This Script."
@@ -2910,6 +2910,21 @@ function Poltergeist:CreateWindow(WindowSettings)
 				HomeTabPage.detailsholder.dashboard.Server.Region.Value.Text = Localization:GetCountryRegionForPlayerAsync(Players.LocalPlayer)
 
 				checkFriends()
+				
+				-- Copy JobId
+				local CopyJobId = HomeTabPage.detailsholder.dashboard.Server.JobId
+				local CopyJobIdButton = CopyJobId:FindFirstChild("Interact")
+				if CopyJobIdButton then
+					CopyJobIdButton.MouseButton1Click:Connect(function()
+						setclipboard(game.JobId)
+						Poltergeist:Notification({
+							Title = "Job Id",
+							Content = "Job Id"
+							Icon = "check_circle"
+						})
+					end)
+				end
+				
 			end
 		end)()
 
