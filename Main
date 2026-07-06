@@ -5717,7 +5717,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 			end)
 
 			Poltergeist:MakeDetachable(Slider, SliderSettings.Name, "linear_scale")
-
+			RegisterSearchable(Slider, SliderSettings.Name, TabPage, Slider.LayoutOrder)
+			
 			return SliderV
 
 		end
@@ -5900,7 +5901,279 @@ function Poltergeist:CreateWindow(WindowSettings)
 			return ToggleV
 
 		end
+		
+		-- Range Slider 
+		function Tab:CreateRangeSlider(RangeSliderSettings, Flag)
+			local RangeSliderV = { IgnoreConfig = false, Class = "RangeSlider", Settings = RangeSliderSettings }
 
+			RangeSliderSettings = Kwargify({
+				Name = "Range Slider",
+				Range = {0, 100},
+				Increment = 1,
+				CurrentMin = 20,
+				CurrentMax = 80,
+				Callback = function(MinValue, MaxValue)
+
+				end,
+			}, RangeSliderSettings or {})
+
+			local currentMin = RangeSliderSettings.CurrentMin
+			local currentMax = RangeSliderSettings.CurrentMax
+
+			local Holder = Instance.new("Frame")
+			Holder.Name = RangeSliderSettings.Name .. " - RangeSlider"
+			Holder.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+			Holder.BackgroundTransparency = 1
+			Holder.Size = UDim2.new(1, -25, 0, 56)
+			Holder.Parent = TabPage
+
+			local UICorner = Instance.new("UICorner", Holder)
+			UICorner.CornerRadius = UDim.new(0, 6)
+
+			local UIStroke = Instance.new("UIStroke", Holder)
+			UIStroke.Color = Color3.fromRGB(64, 61, 76)
+			UIStroke.Thickness = 1
+			UIStroke.Transparency = 1
+
+			local Title = Instance.new("TextLabel")
+			Title.BackgroundTransparency = 1
+			Title.Position = UDim2.new(0, 14, 0, 8)
+			Title.Size = UDim2.new(1, -110, 0, 16)
+			Title.Font = Enum.Font.GothamMedium
+			Title.TextSize = 13
+			Title.TextColor3 = Color3.fromRGB(240, 240, 240)
+			Title.TextXAlignment = Enum.TextXAlignment.Left
+			Title.TextTransparency = 1
+			Title.Text = RangeSliderSettings.Name
+			Title.Parent = Holder
+
+			local ValueLabel = Instance.new("TextLabel")
+			ValueLabel.BackgroundTransparency = 1
+			ValueLabel.AnchorPoint = Vector2.new(1, 0)
+			ValueLabel.Position = UDim2.new(1, -14, 0, 8)
+			ValueLabel.Size = UDim2.new(0, 90, 0, 16)
+			ValueLabel.Font = Enum.Font.GothamMedium
+			ValueLabel.TextSize = 12
+			ValueLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+			ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+			ValueLabel.TextTransparency = 1
+			ValueLabel.Text = tostring(currentMin) .. " - " .. tostring(currentMax)
+			ValueLabel.Parent = Holder
+
+			local Track = Instance.new("Frame")
+			Track.Name = "Track"
+			Track.BackgroundColor3 = Color3.fromRGB(45, 43, 53)
+			Track.BackgroundTransparency = 1
+			Track.Position = UDim2.new(0, 20, 0, 36)
+			Track.Size = UDim2.new(1, -40, 0, 6)
+			Track.Parent = Holder
+
+			local TrackCorner = Instance.new("UICorner", Track)
+			TrackCorner.CornerRadius = UDim.new(1, 0)
+
+			local Fill = Instance.new("Frame")
+			Fill.Name = "Fill"
+			Fill.BackgroundColor3 = Color3.fromRGB(224, 138, 175)
+			Fill.BorderSizePixel = 0
+			Fill.Parent = Track
+
+			local FillCorner = Instance.new("UICorner", Fill)
+			FillCorner.CornerRadius = UDim.new(1, 0)
+
+			local FillGradient = Instance.new("UIGradient", Fill)
+			FillGradient.Color = Poltergeist.ThemeGradient
+
+			PoltergeistUI.ThemeRemote:GetPropertyChangedSignal("Value"):Connect(function()
+				FillGradient.Color = Poltergeist.ThemeGradient
+			end)
+
+			local function MakeHandle()
+				local Handle = Instance.new("TextButton")
+				Handle.AnchorPoint = Vector2.new(0.5, 0.5)
+				Handle.Size = UDim2.new(0, 16, 0, 16)
+				Handle.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+				Handle.AutoButtonColor = false
+				Handle.Text = ""
+				Handle.ZIndex = 3
+				Handle.Parent = Track
+
+				local HandleCorner = Instance.new("UICorner", Handle)
+				HandleCorner.CornerRadius = UDim.new(1, 0)
+
+				local HandleStroke = Instance.new("UIStroke", Handle)
+				HandleStroke.Color = Color3.fromRGB(64, 61, 76)
+				HandleStroke.Thickness = 1.5
+
+				return Handle
+			end
+
+			local MinHandle = MakeHandle()
+			local MaxHandle = MakeHandle()
+
+			local overallMin, overallMax = RangeSliderSettings.Range[1], RangeSliderSettings.Range[2]
+
+			local function ValueToAlpha(value)
+				return (value - overallMin) / (overallMax - overallMin)
+			end
+
+			local function RoundToIncrement(value)
+				return math.floor(value / RangeSliderSettings.Increment + 0.5) * RangeSliderSettings.Increment
+			end
+
+			local function Refresh(animated)
+				local minAlpha = ValueToAlpha(currentMin)
+				local maxAlpha = ValueToAlpha(currentMax)
+
+				local minGoal = {Position = UDim2.new(minAlpha, 0, 0.5, 0)}
+				local maxGoal = {Position = UDim2.new(maxAlpha, 0, 0.5, 0)}
+				local fillGoal = {
+					Position = UDim2.new(minAlpha, 0, 0, 0),
+					Size = UDim2.new(maxAlpha - minAlpha, 0, 1, 0)
+				}
+
+				if animated == false then
+					MinHandle.Position = minGoal.Position
+					MaxHandle.Position = maxGoal.Position
+					Fill.Position = fillGoal.Position
+					Fill.Size = fillGoal.Size
+				else
+					TweenService:Create(MinHandle, TweenInfo.new(0.15, Enum.EasingStyle.Exponential), minGoal):Play()
+					TweenService:Create(MaxHandle, TweenInfo.new(0.15, Enum.EasingStyle.Exponential), maxGoal):Play()
+					TweenService:Create(Fill, TweenInfo.new(0.15, Enum.EasingStyle.Exponential), fillGoal):Play()
+				end
+
+				ValueLabel.Text = tostring(currentMin) .. " - " .. tostring(currentMax)
+			end
+
+			Refresh(false)
+
+			-- Entrada animada
+			TweenService:Create(Holder, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+			TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+			TweenService:Create(Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			TweenService:Create(ValueLabel, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			TweenService:Create(Track, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+
+			local function FireCallback()
+				local Success, Response = pcall(function()
+					RangeSliderSettings.Callback(currentMin, currentMax)
+				end)
+				if not Success then
+					TweenService:Create(Holder, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
+					Title.Text = "Callback Error"
+					print("Poltergeist Interface Suite | " .. RangeSliderSettings.Name .. " Callback Error " .. tostring(Response))
+					wait(0.5)
+					Title.Text = RangeSliderSettings.Name
+					TweenService:Create(Holder, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(32, 30, 38)}):Play()
+				end
+			end
+
+			-- Dragging: cada cursor não pode passar do outro (respeitando o Increment como "folga mínima")
+			local function ConnectHandleDrag(Handle, isMin)
+				local dragging = false
+
+				Handle.InputBegan:Connect(function(Input)
+					if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+						dragging = true
+					end
+				end)
+
+				Handle.InputEnded:Connect(function(Input)
+					if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+						dragging = false
+					end
+				end)
+
+				local Loop
+				Loop = RunService.Stepped:Connect(function()
+					if not Handle.Parent then
+						Loop:Disconnect()
+						return
+					end
+					if not dragging then return end
+
+					local mouseX = UserInputService:GetMouseLocation().X
+					local trackStart = Track.AbsolutePosition.X
+					local trackWidth = Track.AbsoluteSize.X
+
+					local alpha = math.clamp((mouseX - trackStart) / trackWidth, 0, 1)
+					local rawValue = overallMin + alpha * (overallMax - overallMin)
+					local roundedValue = RoundToIncrement(rawValue)
+
+					if isMin then
+						roundedValue = math.clamp(roundedValue, overallMin, currentMax - RangeSliderSettings.Increment)
+						if roundedValue ~= currentMin then
+							currentMin = roundedValue
+							Refresh(false)
+							FireCallback()
+						end
+					else
+						roundedValue = math.clamp(roundedValue, currentMin + RangeSliderSettings.Increment, overallMax)
+						if roundedValue ~= currentMax then
+							currentMax = roundedValue
+							Refresh(false)
+							FireCallback()
+						end
+					end
+				end)
+			end
+
+			ConnectHandleDrag(MinHandle, true)
+			ConnectHandleDrag(MaxHandle, false)
+
+			Holder["MouseEnter"]:Connect(function()
+				tween(UIStroke, {Color = Color3.fromRGB(87, 84, 104)})
+			end)
+			Holder["MouseLeave"]:Connect(function()
+				tween(UIStroke, {Color = Color3.fromRGB(64, 61, 76)})
+			end)
+
+			FireCallback()
+
+			function RangeSliderV:Set(NewSettings)
+				NewSettings = Kwargify({
+					Name = RangeSliderSettings.Name,
+					Range = RangeSliderSettings.Range,
+					Increment = RangeSliderSettings.Increment,
+					CurrentMin = RangeSliderSettings.CurrentMin,
+					CurrentMax = RangeSliderSettings.CurrentMax,
+					Callback = RangeSliderSettings.Callback
+				}, NewSettings or {})
+
+				RangeSliderSettings = NewSettings
+				RangeSliderV.Settings = NewSettings
+
+				overallMin, overallMax = RangeSliderSettings.Range[1], RangeSliderSettings.Range[2]
+				currentMin = math.clamp(RangeSliderSettings.CurrentMin, overallMin, overallMax - RangeSliderSettings.Increment)
+				currentMax = math.clamp(RangeSliderSettings.CurrentMax, currentMin + RangeSliderSettings.Increment, overallMax)
+
+				Title.Text = RangeSliderSettings.Name
+				Refresh(true)
+				FireCallback()
+			end
+
+			function RangeSliderV:UpdateValues(MinValue, MaxValue)
+				currentMin = math.clamp(MinValue, overallMin, overallMax - RangeSliderSettings.Increment)
+				currentMax = math.clamp(MaxValue, currentMin + RangeSliderSettings.Increment, overallMax)
+				Refresh(true)
+				FireCallback()
+			end
+
+			function RangeSliderV:Destroy()
+				Holder.Visible = false
+				Holder:Destroy()
+			end
+
+			if Flag then
+				Poltergeist.Options[Flag] = RangeSliderV
+			end
+
+			Poltergeist:MakeDetachable(Holder, RangeSliderSettings.Name, "linear_scale")
+			RegisterSearchable(Holder, RangeSliderSettings.Name, TabPage)
+
+			return RangeSliderV
+		end
+		
 		-- Bind
 		function Tab:CreateBind(BindSettings, Flag)
 			local BindV = { Class = "Keybind", IgnoreConfig = false, Settings = BindSettings, Active = false }
@@ -8069,7 +8342,17 @@ if isStudio then
 			})
 		end,
 	})
-
+	
+	Tabs.Main:CreateRangeSlider({
+		Name = "Price Range",
+		Range = {0, 100},
+		Increment = 1,
+		CurrentMin = 20,
+		CurrentMax = 80,
+		Callback = function(min, max)
+			print("Range:", min, "-", max)
+		end
+	})
 	Tabs.Main:CreateSection("Section Example")
 	Tabs.Main:CreateButton({
 		Name = "Button Example!",
