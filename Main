@@ -23,7 +23,7 @@ Deity/dp4pv/x64x70 | Certain Scripting and Testing ig
 
 ]]
 
-local Release = "v1.1.7"
+local Release = "v1.3.2"
 
 local Poltergeist = {
 	Folder = "Poltergeist",
@@ -34,6 +34,31 @@ local Poltergeist = {
 		ColorSequenceKeypoint.new(1.00, Color3.fromRGB(0, 224, 63))
 	})
 }
+
+function Poltergeist:GetThemeColor()
+	local keypoints = Poltergeist.ThemeGradient.Keypoints
+	return keypoints[1].Value
+end
+
+Poltergeist.ThemedInstances = Poltergeist.ThemedInstances or {}
+
+function Poltergeist:RegisterThemedColor(Instance, PropertyName, Condition)
+	table.insert(Poltergeist.ThemedInstances, {Instance = Instance, Property = PropertyName, Condition = Condition})
+end
+
+function Poltergeist:RefreshCustomTheming()
+	local color = Poltergeist:GetThemeColor()
+	for i = #Poltergeist.ThemedInstances, 1, -1 do
+		local entry = Poltergeist.ThemedInstances[i]
+		if entry.Instance and entry.Instance.Parent then
+			if entry.Condition == nil or entry.Condition() then
+				entry.Instance[entry.Property] = color
+			end
+		else
+			table.remove(Poltergeist.ThemedInstances, i)
+		end
+	end
+end
 
 local GuiService = game:GetService("GuiService")
 local UserInputService = game:GetService("UserInputService")
@@ -2223,6 +2248,8 @@ function Poltergeist:MakeDetachable(Element, Title, Icon, DirectCallback)
 		floatWindow.ZIndex = 700
 		floatWindow.ClipsDescendants = true
 		floatWindow.Parent = PoltergeistUI
+		local Theme = PoltergeistUI.ThemeRemote.Theme:Clone()
+		Theme.Parent = floatWindow
 
 		-- Clamp pra não nascer fora da tela
 		local viewport = Camera.ViewportSize
@@ -2418,6 +2445,26 @@ function Poltergeist:MakeDetachable(Element, Title, Icon, DirectCallback)
 	end)
 end
 
+function Poltergeist:BadgeFunction(Element, BadgeTable)
+	if Element:FindFirstChild("BadgeContainer") then
+		for _, badge in pairs(BadgeTable) do
+			local badgesNames = {
+				[1] = "New",
+				[2] = "Beta",
+				[3] = "Updated",
+				[4] = "Outdated",
+				[5] = "Deprecated",
+			}
+			local badge = PoltergeistUI.Templates.Badges:FindFirstChild(badgesNames[badge].."Badge")
+			if badge then
+				local clone = badge:Clone()
+				clone.Parent = Element.BadgeContainer
+				clone.Visible = true
+			end
+		end
+	end
+end
+
 local function Unhide(Window, currentTab)
 	Window.Size = SizeBleh
 	Window.Elements.Visible = true
@@ -2578,6 +2625,10 @@ function Poltergeist:CreateWindow(WindowSettings)
 	-- end)
 
 	PoltergeistUI.Enabled = true
+
+	PoltergeistUI.ThemeRemote:GetPropertyChangedSignal("Value"):Connect(function()
+		Poltergeist:RefreshCustomTheming()
+	end)
 
 	if WindowSettings.KeySystem then
 		local KeySettings = WindowSettings.KeySettings
@@ -4316,6 +4367,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 					Description = nil,
 					CurrentBind = "Q",
 					HoldToInteract = false, -- setting this makes the Bind in toggle mode
+					Badges = {},
 					Callback = function(Bind)
 						-- The function that takes place when the Bind is pressed
 						-- The variable (Bind) is a boolean for whether the Bind is being held or not (HoldToInteract needs to be true) or whether the Bind is currently active
@@ -4520,6 +4572,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 					Poltergeist.Options[Flag] = BindV
 				end
 
+				Poltergeist:BadgeFunction(Bind, BindSettings.Badges)
 				-- Poltergeist.Flags[BindSettings.Flag] = BindSettings
 
 				return BindV
@@ -4705,6 +4758,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 					CurrentOption = {"Option 1"},
 					MultipleOptions = false,
 					SpecialType = nil, -- currently onl player, might add more soon
+					Badges = {},
 					Callback = function(Options)
 						-- The function that takes place when the selected option is changed
 						-- The variable (Options) is a table of strings for the current selected options or a string if multioptions is false
@@ -4883,6 +4937,40 @@ function Poltergeist:CreateWindow(WindowSettings)
 					end
 				end
 
+				local Teams = game:GetService("Teams")
+
+				local function TeamsTableRefresh()
+					for i,v in pairs(DropdownSettings.Options) do
+						table.remove(DropdownSettings.Options, i)
+					end
+
+					for i,v in pairs(Teams:GetChildren()) do
+						table.insert(DropdownSettings.Options, v.Name)
+					end
+				end
+
+				local function LocalPlayerToolsRefresh()
+					for i,v in pairs(DropdownSettings.Options) do
+						table.remove(DropdownSettings.Options, i)
+					end
+
+					local Tools = {}
+
+					for i,v in pairs(game:GetService("Players").LocalPlayer.Backpack:GetChildren()) do
+						table.insert(Tools, v.Name)
+					end
+
+					for i,v in pairs(game:GetService("Players").LocalPlayer.Character:GetChildren()) do
+						if v:IsA("Tool") then
+							table.insert(Tools, v.Name)
+						end
+					end
+
+					for i,v in pairs(Tools) do
+						table.insert(DropdownSettings.Options, v)
+					end
+				end
+
 				Dropdown.Interact.MouseButton1Click:Connect(function()
 					Toggle()
 				end)
@@ -4906,6 +4994,25 @@ function Poltergeist:CreateWindow(WindowSettings)
 					Players.PlayerAdded:Connect(function() PlayerTableRefresh() end)
 					Players.PlayerRemoving:Connect(function() PlayerTableRefresh() end)
 
+				elseif DropdownSettings.SpecialType == "Team" then
+					for i,v in pairs(DropdownSettings.Options) do
+						table.remove(DropdownSettings.Options, i)
+					end
+					TeamsTableRefresh()
+					DropdownSettings.CurrentOption = DropdownSettings.Options[1]
+					Teams.ChildAdded:Connect(function() TeamsTableRefresh() end)
+					Teams.ChildRemoved:Connect(function() TeamsTableRefresh() end)
+				elseif DropdownSettings.SpecialType == "Tools" then
+					for i,v in pairs(DropdownSettings.Options) do
+						table.remove(DropdownSettings.Options, i)
+					end
+					LocalPlayerToolsRefresh()
+					DropdownSettings.CurrentOption = DropdownSettings.Options[1]
+					game:GetService("Players").LocalPlayer.Backpack.ChildAdded:Connect(function() LocalPlayerToolsRefresh() end)
+					game:GetService("Players").LocalPlayer.Backpack.ChildRemoved:Connect(function() LocalPlayerToolsRefresh() end)
+					game:GetService("Players").LocalPlayer.Character.ChildAdded:Connect(function() LocalPlayerToolsRefresh() end)
+					game:GetService("Players").LocalPlayer.Character.ChildRemoved:Connect(function() LocalPlayerToolsRefresh() end)
+					game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function() LocalPlayerToolsRefresh() end)
 				end
 
 				Refresh()
@@ -5039,6 +5146,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 				if Flag then
 					Poltergeist.Options[Flag] = DropdownV
 				end
+
+				Poltergeist:BadgeFunction(Dropdown, DropdownSettings.Badges)
 
 				-- Poltergeist.Flags[DropdownSettings.Flag] = DropdownSettings
 
@@ -5718,7 +5827,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			Poltergeist:MakeDetachable(Slider, SliderSettings.Name, "linear_scale")
 			RegisterSearchable(Slider, SliderSettings.Name, TabPage, Slider.LayoutOrder)
-			
+
 			return SliderV
 
 		end
@@ -5730,6 +5839,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 			ToggleSettings = Kwargify({
 				Name = "Toggle",
 				Description = nil,
+				Badges = {}, -- 1 == new, 2 == beta, 3 == updated, 4 == outdated, 5 == deprecated
 				CurrentValue = false,
 				Callback = function(Value)
 				end,
@@ -5897,11 +6007,359 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			Poltergeist:MakeDetachable(Toggle, ToggleSettings.Name, "toggle_on")
 			RegisterSearchable(Toggle, ToggleSettings.Name, TabPage, Toggle.LayoutOrder)
-
+			Poltergeist:BadgeFunction(Toggle, ToggleSettings.Badges)
 			return ToggleV
 
 		end
-		
+
+		function Tab:CreateTimer(TimerSettings)
+
+			TimerSettings = Kwargify({
+				Name = "Timer",
+				Callback = function()
+
+				end,
+			}, TimerSettings or {})
+
+			local TimerV = {
+				Settings = TimerSettings,
+				Running = false,
+				Paused = false,
+				Elapsed = 0,
+				GoalTime = nil,
+				GoalCallback = TimerSettings.Callback,
+				Destroyed = false
+			}
+
+			local Timer = Elements.Template.Timer:Clone()
+
+			Timer.Name = TimerSettings.Name
+			Timer.Visible = true
+			Timer.Parent = TabPage
+
+			TimerV.Timer = Timer
+
+			--// Timer Elements
+			local TimeContainer = Timer.TimeContainer
+
+			local Hours1 = TimeContainer.Hours1.Title
+			local Hours2 = TimeContainer.Hours2.Title
+
+			local Minutes1 = TimeContainer.Minutes1.Title
+			local Minutes2 = TimeContainer.Minutes2.Title
+
+			local Seconds1 = TimeContainer.Seconds1.Title
+			local Seconds2 = TimeContainer.Seconds2.Title
+
+			local Mill1 = TimeContainer.Mill1.Title
+			local Mill2 = TimeContainer.Mill2.Title
+			local Mill3 = TimeContainer.Mill3.Title
+
+			--// Atualiza os números da UI
+			local function UpdateDisplay(Time)
+				Time = math.max(Time, 0)
+
+				local TotalMilliseconds = math.floor(Time * 1000)
+
+				local Hours = math.floor(TotalMilliseconds / 3600000)
+				local Minutes = math.floor((TotalMilliseconds % 3600000) / 60000)
+				local Seconds = math.floor((TotalMilliseconds % 60000) / 1000)
+				local Milliseconds = TotalMilliseconds % 1000
+
+				Hours = Hours % 100
+
+				local HoursString = string.format("%02d", Hours)
+				local MinutesString = string.format("%02d", Minutes)
+				local SecondsString = string.format("%02d", Seconds)
+				local MillString = string.format("%03d", Milliseconds)
+
+				Hours1.Text = HoursString:sub(1, 1)
+				Hours2.Text = HoursString:sub(2, 2)
+
+				Minutes1.Text = MinutesString:sub(1, 1)
+				Minutes2.Text = MinutesString:sub(2, 2)
+
+				Seconds1.Text = SecondsString:sub(1, 1)
+				Seconds2.Text = SecondsString:sub(2, 2)
+
+				Mill1.Text = MillString:sub(1, 1)
+				Mill2.Text = MillString:sub(2, 2)
+				Mill3.Text = MillString:sub(3, 3)
+			end
+
+			--// Estado inicial
+			UpdateDisplay(0)
+
+			--// Animação de entrada
+			Timer.BackgroundTransparency = 1
+
+			if Timer:FindFirstChild("UIStroke") then
+				Timer.UIStroke.Transparency = 1
+			end
+
+			for _, Object in ipairs(TimeContainer:GetDescendants()) do
+				if Object:IsA("TextLabel") or Object:IsA("TextButton") then
+					Object.TextTransparency = 1
+				end
+			end
+
+			TweenService:Create(
+				Timer,
+				TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{BackgroundTransparency = 0.5}
+			):Play()
+
+			if Timer:FindFirstChild("UIStroke") then
+				TweenService:Create(
+					Timer.UIStroke,
+					TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+					{Transparency = 0.5}
+				):Play()
+			end
+
+			for _, Object in ipairs(TimeContainer:GetDescendants()) do
+				if Object:IsA("TextLabel") or Object:IsA("TextButton") then
+					TweenService:Create(
+						Object,
+						TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{TextTransparency = 0}
+					):Play()
+				end
+			end
+
+			--// Thread principal
+			task.spawn(function()
+				while not TimerV.Destroyed do
+
+					if TimerV.Running and not TimerV.Paused then
+
+						local StartTime = os.clock()
+						local StartingElapsed = TimerV.Elapsed
+
+						while TimerV.Running and not TimerV.Paused and not TimerV.Destroyed do
+
+							local CurrentElapsed = StartingElapsed + (os.clock() - StartTime)
+							TimerV.Elapsed = CurrentElapsed
+
+							UpdateDisplay(CurrentElapsed)
+
+							--// Goal
+							if TimerV.GoalTime and CurrentElapsed >= TimerV.GoalTime then
+
+								TimerV.Running = false
+								TimerV.Paused = false
+
+								TimerV.Elapsed = 0
+								UpdateDisplay(0)
+
+								local Callback = TimerV.GoalCallback
+
+								if Callback then
+									local Success, Response = pcall(Callback)
+
+									if not Success then
+										warn(
+											"Poltergeist Interface Suite | "
+												.. TimerSettings.Name
+												.. " Goal Callback Error: "
+												.. tostring(Response)
+										)
+									end
+								end
+
+								break
+							end
+
+							task.wait()
+						end
+
+					else
+						task.wait()
+					end
+				end
+			end)
+
+			--// Start
+			function TimerV:Start()
+
+				if TimerV.Destroyed then
+					return
+				end
+
+				TimerV.Running = true
+				TimerV.Paused = false
+
+				return TimerV
+			end
+
+			--// Stop
+			--// Para completamente o timer, mas mantém o tempo atual.
+			function TimerV:Stop()
+
+				if TimerV.Destroyed then
+					return
+				end
+
+				TimerV.Running = false
+				TimerV.Paused = false
+
+				return TimerV
+			end
+
+			--// Pause
+			--// Pausa o timer mantendo o tempo atual.
+			function TimerV:Pause()
+
+				if TimerV.Destroyed then
+					return
+				end
+
+				TimerV.Paused = true
+
+				return TimerV
+			end
+
+			--// Reset
+			function TimerV:Reset()
+
+				if TimerV.Destroyed then
+					return
+				end
+
+				TimerV.Running = false
+				TimerV.Paused = false
+				TimerV.Elapsed = 0
+
+				UpdateDisplay(0)
+
+				return TimerV
+			end
+
+			--// Goal
+			--// Exemplo:
+			--// Timer:Goal(600)
+			--// Timer:Goal(600, function()
+			--//     print("10 minutos!")
+			--// end)
+			function TimerV:Goal(Seconds, Callback)
+
+				if TimerV.Destroyed then
+					return
+				end
+
+				if typeof(Seconds) ~= "number" then
+					return TimerV
+				end
+
+				TimerV.GoalTime = math.max(Seconds, 0)
+
+				if Callback ~= nil then
+					if typeof(Callback) == "function" then
+						TimerV.GoalCallback = Callback
+					end
+				end
+
+				return TimerV
+			end
+
+			--// Remove Goal
+			function TimerV:ClearGoal()
+
+				if TimerV.Destroyed then
+					return
+				end
+
+				TimerV.GoalTime = nil
+				TimerV.GoalCallback = TimerSettings.Callback
+
+				return TimerV
+			end
+
+			--// Define o tempo manualmente
+			function TimerV:SetTime(Seconds)
+
+				if TimerV.Destroyed then
+					return
+				end
+
+				if typeof(Seconds) ~= "number" then
+					return TimerV
+				end
+
+				TimerV.Elapsed = math.max(Seconds, 0)
+
+				UpdateDisplay(TimerV.Elapsed)
+
+				return TimerV
+			end
+
+			--// Retorna o tempo atual
+			function TimerV:GetTime()
+
+				return TimerV.Elapsed
+			end
+
+			--// Retorna se está rodando
+			function TimerV:IsRunning()
+
+				return TimerV.Running and not TimerV.Paused
+			end
+
+			--// Retorna se está pausado
+			function TimerV:IsPaused()
+
+				return TimerV.Paused
+			end
+
+			--// Retorna se possui Goal
+			function TimerV:HasGoal()
+
+				return TimerV.GoalTime ~= nil
+			end
+
+			--// Atualiza configurações
+			function TimerV:Set(TimerSettings2)
+
+				TimerSettings2 = Kwargify({
+					Name = TimerSettings.Name,
+					Callback = TimerSettings.Callback
+				}, TimerSettings2 or {})
+
+				TimerSettings = TimerSettings2
+				TimerV.Settings = TimerSettings2
+
+				TimerV.GoalCallback = TimerSettings2.Callback
+
+				Timer.Name = TimerSettings2.Name
+
+				return TimerV
+			end
+
+			--// Destroy
+			function TimerV:Destroy()
+
+				if TimerV.Destroyed then
+					return
+				end
+
+				TimerV.Destroyed = true
+				TimerV.Running = false
+				TimerV.Paused = false
+
+				Timer.Visible = false
+				Timer:Destroy()
+			end
+
+			RegisterSearchable(
+				Timer,
+				TimerSettings.Name,
+				TabPage,
+				Timer.LayoutOrder
+			)
+
+			return TimerV
+		end
+
 		-- Range Slider 
 		function Tab:CreateRangeSlider(RangeSliderSettings, Flag)
 			local RangeSliderV = { IgnoreConfig = false, Class = "RangeSlider", Settings = RangeSliderSettings }
@@ -5926,6 +6384,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 			Holder.BackgroundTransparency = 1
 			Holder.Size = UDim2.new(1, -25, 0, 56)
 			Holder.Parent = TabPage
+			local Theme = PoltergeistUI.ThemeRemote.Theme:Clone()
+			Theme.Parent = Holder
 
 			local UICorner = Instance.new("UICorner", Holder)
 			UICorner.CornerRadius = UDim.new(0, 6)
@@ -5946,6 +6406,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 			Title.TextTransparency = 1
 			Title.Text = RangeSliderSettings.Name
 			Title.Parent = Holder
+			local Theme = PoltergeistUI.ThemeRemote.Theme:Clone()
+			Theme.Parent = Title
 
 			local ValueLabel = Instance.new("TextLabel")
 			ValueLabel.BackgroundTransparency = 1
@@ -6173,7 +6635,826 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			return RangeSliderV
 		end
-		
+
+		-- Confirmation (modal)
+		function Tab:CreateConfirmation(ConfirmationSettings)
+			ConfirmationSettings = Kwargify({
+				Title = "Confirm Action",
+				Text = "Are you sure you want to continue?",
+				ConfirmText = "Confirm",
+				CancelText = "Cancel",
+				Callback = function(result) end,
+			}, ConfirmationSettings or {})
+
+			local ConfirmationV = {}
+
+			local Overlay = Instance.new("Frame")
+			Overlay.Name = "ConfirmationOverlay"
+			Overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+			Overlay.BackgroundTransparency = 1
+			Overlay.Size = UDim2.new(1, 0, 1, 0)
+			Overlay.ZIndex = 900
+			Overlay.Active = true -- bloqueia clique no resto da interface
+			Overlay.Parent = PoltergeistUI
+
+			local Dialog = Instance.new("Frame")
+			Dialog.Name = "ConfirmationDialog"
+			Dialog.BackgroundColor3 = Color3.fromRGB(28, 26, 33)
+			Dialog.BorderSizePixel = 0
+			Dialog.AnchorPoint = Vector2.new(0.5, 0.5)
+			Dialog.Position = UDim2.new(0.5, 0, 0.5, 30)
+			Dialog.Size = UDim2.new(0, 320, 0, 0)
+			Dialog.AutomaticSize = Enum.AutomaticSize.Y
+			Dialog.BackgroundTransparency = 1
+			Dialog.ZIndex = 901
+			Dialog.Parent = Overlay
+			local Theme = PoltergeistUI.ThemeRemote.Theme:Clone()
+			Theme.Parent = Dialog
+
+			Instance.new("UICorner", Dialog).CornerRadius = UDim.new(0, 8)
+			local DialogStroke = Instance.new("UIStroke", Dialog)
+			DialogStroke.Color = Color3.fromRGB(64, 61, 76)
+			DialogStroke.Thickness = 1
+			DialogStroke.Transparency = 1
+
+			local DialogPadding = Instance.new("UIPadding", Dialog)
+			DialogPadding.PaddingTop = UDim.new(0, 18)
+			DialogPadding.PaddingBottom = UDim.new(0, 16)
+			DialogPadding.PaddingLeft = UDim.new(0, 18)
+			DialogPadding.PaddingRight = UDim.new(0, 18)
+
+			local DialogLayout = Instance.new("UIListLayout", Dialog)
+			DialogLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			DialogLayout.Padding = UDim.new(0, 12)
+
+			local TitleLabel = Instance.new("TextLabel")
+			TitleLabel.BackgroundTransparency = 1
+			TitleLabel.Size = UDim2.new(1, 0, 0, 20)
+			TitleLabel.Font = Enum.Font.GothamBold
+			TitleLabel.TextSize = 16
+			TitleLabel.TextColor3 = Color3.fromRGB(240, 240, 240)
+			TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+			TitleLabel.TextTransparency = 1
+			TitleLabel.Text = ConfirmationSettings.Title
+			TitleLabel.LayoutOrder = 0
+			TitleLabel.ZIndex = 902
+			TitleLabel.Parent = Dialog
+
+			local TextLabel = Instance.new("TextLabel")
+			TextLabel.BackgroundTransparency = 1
+			TextLabel.Size = UDim2.new(1, 0, 0, 0)
+			TextLabel.AutomaticSize = Enum.AutomaticSize.Y
+			TextLabel.Font = Enum.Font.Gotham
+			TextLabel.TextSize = 13
+			TextLabel.TextColor3 = Color3.fromRGB(190, 190, 190)
+			TextLabel.TextXAlignment = Enum.TextXAlignment.Left
+			TextLabel.TextYAlignment = Enum.TextYAlignment.Top
+			TextLabel.TextWrapped = true
+			TextLabel.TextTransparency = 1
+			TextLabel.Text = ConfirmationSettings.Text
+			TextLabel.LayoutOrder = 1
+			TextLabel.ZIndex = 902
+			TextLabel.Parent = Dialog
+
+			local ButtonRow = Instance.new("Frame")
+			ButtonRow.BackgroundTransparency = 1
+			ButtonRow.Size = UDim2.new(1, 0, 0, 30)
+			ButtonRow.LayoutOrder = 2
+			ButtonRow.ZIndex = 902
+			ButtonRow.Parent = Dialog
+
+			local ButtonLayout = Instance.new("UIListLayout", ButtonRow)
+			ButtonLayout.FillDirection = Enum.FillDirection.Horizontal
+			ButtonLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+			ButtonLayout.Padding = UDim.new(0, 8)
+
+			local function MakeDialogButton(text, filled)
+				local Btn = Instance.new("TextButton")
+				Btn.AutomaticSize = Enum.AutomaticSize.X
+				Btn.Size = UDim2.new(0, 0, 1, 0)
+				Btn.BackgroundColor3 = filled and Poltergeist.ThemeGradient.Keypoints[1].Value or Color3.fromRGB(40, 38, 47)
+				Btn.BackgroundTransparency = 1
+				Btn.AutoButtonColor = false
+				Btn.Font = Enum.Font.GothamMedium
+				Btn.TextSize = 13
+				Btn.TextColor3 = filled and Color3.fromRGB(24, 22, 29) or Color3.fromRGB(220, 220, 220)
+				Btn.TextTransparency = 1
+				Btn.Text = text
+				Btn.ZIndex = 903
+				Btn.Parent = ButtonRow
+
+				local Padding = Instance.new("UIPadding", Btn)
+				Padding.PaddingLeft = UDim.new(0, 16)
+				Padding.PaddingRight = UDim.new(0, 16)
+
+				Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+
+				if not filled then
+					local Stroke = Instance.new("UIStroke", Btn)
+					Stroke.Color = Color3.fromRGB(64, 61, 76)
+					Stroke.Thickness = 1
+					Stroke.Transparency = 1
+					Btn.MouseEnter:Connect(function() tween(Stroke, {Color = Color3.fromRGB(87, 84, 104)}) end)
+					Btn.MouseLeave:Connect(function() tween(Stroke, {Color = Color3.fromRGB(64, 61, 76)}) end)
+				end
+
+				return Btn
+			end
+
+			local CancelBtn = MakeDialogButton(ConfirmationSettings.CancelText, false)
+			local ConfirmBtn = MakeDialogButton(ConfirmationSettings.ConfirmText, true)
+
+			PoltergeistUI.ThemeRemote:GetPropertyChangedSignal("Value"):Connect(function()
+				ConfirmBtn.BackgroundColor3 = Poltergeist.ThemeGradient.Keypoints[1].Value
+			end)
+
+			local closed = false
+			local function Close(result)
+				if closed then return end
+				closed = true
+
+				tween(Overlay, {BackgroundTransparency = 1})
+				tween(Dialog, {Position = UDim2.new(0.5, 0, 0.5, 30), BackgroundTransparency = 1})
+				tween(DialogStroke, {Transparency = 1})
+				tween(TitleLabel, {TextTransparency = 1})
+				tween(TextLabel, {TextTransparency = 1})
+				for _, btn in ipairs(ButtonRow:GetChildren()) do
+					if btn:IsA("TextButton") then
+						tween(btn, {BackgroundTransparency = 1, TextTransparency = 1})
+					end
+				end
+
+				task.wait(0.35)
+				Overlay:Destroy()
+
+				local Success, Response = pcall(function() ConfirmationSettings.Callback(result) end)
+				if not Success then
+					print("Poltergeist Interface Suite | " .. ConfirmationSettings.Title .. " Callback Error " .. tostring(Response))
+				end
+			end
+
+			CancelBtn.MouseButton1Click:Connect(function() Close(false) end)
+			ConfirmBtn.MouseButton1Click:Connect(function() Close(true) end)
+
+			tween(Overlay, {BackgroundTransparency = 0.55})
+			tween(Dialog, {Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 0}, nil, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out))
+			tween(DialogStroke, {Transparency = 0.5})
+			tween(TitleLabel, {TextTransparency = 0})
+			tween(TextLabel, {TextTransparency = 0.1})
+			tween(CancelBtn, {BackgroundTransparency = 0, TextTransparency = 0})
+			tween(ConfirmBtn, {BackgroundTransparency = 0, TextTransparency = 0})
+
+			function ConfirmationV:Close(result) Close(result) end
+
+			return ConfirmationV
+		end
+
+		-- ================= Resource Bar Element =================
+		function Tab:CreateResourceBar(ResourceSettings)
+			TabPage.Position = UDim2.new(0, 0, 0, 28)
+
+			ResourceSettings = Kwargify({
+				Name = "Resources",
+				Description = nil,
+				Resources = {}, -- {Name, Value, Max, Color}
+				ShowValues = true,
+				ShowPercentage = false,
+				AnimateChanges = true,
+				Orientation = "Vertical", -- "Vertical" or "Horizontal"
+				BarHeight = 20,
+				Callback = function(resourceName, value)
+					-- Called when a resource changes
+				end
+			}, ResourceSettings or {})
+
+			local ResourceV = {
+				Settings = ResourceSettings,
+				Resources = {}
+			}
+
+			-- Create container
+			local Container = Instance.new("Frame")
+			Container.Name = ResourceSettings.Name .. " - ResourceBar"
+			Container.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+			Container.BackgroundTransparency = 1
+			Container.Size = UDim2.new(1, -25, 0, 0)
+			Container.AutomaticSize = Enum.AutomaticSize.Y
+			Container.Visible = true
+			Container.Parent = TabPage
+			local Theme = PoltergeistUI.ThemeRemote.Theme:Clone()
+			Theme.Parent = Container
+
+			-- UI Styling
+			local UICorner = Instance.new("UICorner", Container)
+			UICorner.CornerRadius = UDim.new(0, 6)
+
+			local UIStroke = Instance.new("UIStroke", Container)
+			UIStroke.Color = Color3.fromRGB(64, 61, 76)
+			UIStroke.Thickness = 1
+			UIStroke.Transparency = 1
+
+			local ContainerPadding = Instance.new("UIPadding", Container)
+			ContainerPadding.PaddingTop = UDim.new(0, 14)
+			ContainerPadding.PaddingBottom = UDim.new(0, 14)
+			ContainerPadding.PaddingLeft = UDim.new(0, 14)
+			ContainerPadding.PaddingRight = UDim.new(0, 14)
+
+			-- Title
+			local Title = Instance.new("TextLabel")
+			Title.BackgroundTransparency = 1
+			Title.Size = UDim2.new(1, 0, 0, 18)
+			Title.Font = Enum.Font.GothamMedium
+			Title.TextSize = 13
+			Title.TextColor3 = Color3.fromRGB(240, 240, 240)
+			Title.TextXAlignment = Enum.TextXAlignment.Left
+			Title.TextTransparency = 1
+			Title.Text = ResourceSettings.Name
+			Title.Parent = Container
+
+			-- Resources container
+			local ResourcesContainer = Instance.new("Frame")
+			ResourcesContainer.BackgroundTransparency = 1
+			ResourcesContainer.Position = UDim2.new(0, 0, 0, 26)
+			ResourcesContainer.Size = UDim2.new(1, 0, 0, 0)
+			ResourcesContainer.AutomaticSize = Enum.AutomaticSize.Y
+			ResourcesContainer.Parent = Container
+
+			local ResourcesLayout = Instance.new("UIListLayout", ResourcesContainer)
+			ResourcesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			ResourcesLayout.Padding = UDim.new(0, 8)
+			ResourcesLayout.FillDirection = ResourceSettings.Orientation == "Horizontal" and Enum.FillDirection.Horizontal or Enum.FillDirection.Vertical
+
+			-- Function to create a single resource bar
+			local function CreateResourceBar(resource, index)
+				local BarContainer = Instance.new("Frame")
+				BarContainer.BackgroundTransparency = 1
+				BarContainer.Size = UDim2.new(
+					ResourceSettings.Orientation == "Horizontal" and 1/#ResourceSettings.Resources or 1,
+					0,
+					0,
+					ResourceSettings.BarHeight + 24
+				)
+				BarContainer.LayoutOrder = index
+				BarContainer.Parent = ResourcesContainer
+
+				-- Resource name
+				local NameLabel = Instance.new("TextLabel")
+				NameLabel.BackgroundTransparency = 1
+				NameLabel.Size = UDim2.new(1, 0, 0, 14)
+				NameLabel.Font = Enum.Font.GothamMedium
+				NameLabel.TextSize = 11
+				NameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+				NameLabel.TextXAlignment = Enum.TextXAlignment.Left
+				NameLabel.TextTransparency = 1
+				NameLabel.Text = resource.Name
+				NameLabel.Parent = BarContainer
+
+				-- Value label
+				local ValueLabel = Instance.new("TextLabel")
+				ValueLabel.BackgroundTransparency = 1
+				ValueLabel.AnchorPoint = Vector2.new(1, 0)
+				ValueLabel.Position = UDim2.new(1, 0, 0, 0)
+				ValueLabel.Size = UDim2.new(0, 80, 0, 14)
+				ValueLabel.Font = Enum.Font.Gotham
+				ValueLabel.TextSize = 11
+				ValueLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+				ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+				ValueLabel.TextTransparency = 1
+				ValueLabel.Text = ResourceSettings.ShowValues and string.format("%d / %d", resource.Value, resource.Max) or ""
+				ValueLabel.Parent = BarContainer
+
+				-- Bar background
+				local BarBg = Instance.new("Frame")
+				BarBg.BackgroundColor3 = Color3.fromRGB(45, 43, 53)
+				BarBg.BackgroundTransparency = 1
+				BarBg.Position = UDim2.new(0, 0, 0, 18)
+				BarBg.Size = UDim2.new(1, 0, 0, ResourceSettings.BarHeight)
+				BarBg.Parent = BarContainer
+
+				local BarBgCorner = Instance.new("UICorner", BarBg)
+				BarBgCorner.CornerRadius = UDim.new(1, 0)
+
+				-- Bar fill
+				local BarFill = Instance.new("Frame")
+				BarFill.BackgroundColor3 = resource.Color or Color3.fromRGB(224, 138, 175)
+				BarFill.BorderSizePixel = 0
+				BarFill.Size = UDim2.new(
+					math.clamp(resource.Value / resource.Max, 0, 1),
+					0,
+					1,
+					0
+				)
+				BarFill.Parent = BarBg
+
+				local BarFillCorner = Instance.new("UICorner", BarFill)
+				BarFillCorner.CornerRadius = UDim.new(1, 0)
+
+				-- Gradient for the bar
+				local BarGradient = Instance.new("UIGradient", BarFill)
+				BarGradient.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, resource.Color or Color3.fromRGB(224, 138, 175)),
+					ColorSequenceKeypoint.new(1, resource.Color or Color3.fromRGB(224, 138, 175))
+				})
+
+				-- Percentage label inside bar (optional)
+				local PercentLabel
+				if ResourceSettings.ShowPercentage then
+					PercentLabel = Instance.new("TextLabel")
+					PercentLabel.BackgroundTransparency = 1
+					PercentLabel.Size = UDim2.new(1, 0, 1, 0)
+					PercentLabel.Font = Enum.Font.GothamBold
+					PercentLabel.TextSize = 10
+					PercentLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+					PercentLabel.TextXAlignment = Enum.TextXAlignment.Center
+					PercentLabel.TextTransparency = 1
+					PercentLabel.Text = string.format("%d%%", math.floor((resource.Value / resource.Max) * 100))
+					PercentLabel.Parent = BarFill
+				end
+
+				-- Animate entry
+				TweenService:Create(NameLabel, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				TweenService:Create(ValueLabel, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				TweenService:Create(BarBg, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+				if PercentLabel then
+					TweenService:Create(PercentLabel, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				end
+
+				-- Store reference
+				local resourceData = {
+					Container = BarContainer,
+					NameLabel = NameLabel,
+					ValueLabel = ValueLabel,
+					BarBg = BarBg,
+					BarFill = BarFill,
+					PercentLabel = PercentLabel,
+					CurrentValue = resource.Value,
+					MaxValue = resource.Max,
+					Color = resource.Color
+				}
+
+				-- Function to update resource
+				function resourceData:SetValue(newValue, animate)
+					newValue = math.clamp(newValue, 0, self.MaxValue)
+					self.CurrentValue = newValue
+
+					local percentage = newValue / self.MaxValue
+
+					if animate == false or not ResourceSettings.AnimateChanges then
+						self.BarFill.Size = UDim2.new(percentage, 0, 1, 0)
+					else
+						TweenService:Create(self.BarFill, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {
+							Size = UDim2.new(percentage, 0, 1, 0)
+						}):Play()
+					end
+
+					-- Update value label
+					if ResourceSettings.ShowValues then
+						self.ValueLabel.Text = string.format("%d / %d", newValue, self.MaxValue)
+					end
+
+					-- Update percentage
+					if self.PercentLabel then
+						self.PercentLabel.Text = string.format("%d%%", math.floor(percentage * 100))
+					end
+
+					-- Fire callback
+					local success, err = pcall(function()
+						ResourceSettings.Callback(resource.Name, newValue)
+					end)
+					if not success then
+						warn("Resource Bar callback error:", err)
+					end
+				end
+
+				-- Function to set max value
+				function resourceData:SetMax(newMax)
+					self.MaxValue = newMax
+					self:SetValue(self.CurrentValue, false)
+				end
+
+				-- Initial animation
+				task.wait(0.1 * index)
+
+				return resourceData
+			end
+
+			-- Create all resources
+			for i, resource in ipairs(ResourceSettings.Resources) do
+				local resourceData = CreateResourceBar(resource, i)
+				table.insert(ResourceV.Resources, resourceData)
+			end
+
+			-- Main container animations
+			TweenService:Create(Container, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+			TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+			TweenService:Create(Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+			-- Hover effects
+			Container.MouseEnter:Connect(function()
+				TweenService:Create(UIStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(87, 84, 104)}):Play()
+			end)
+			Container.MouseLeave:Connect(function()
+				TweenService:Create(UIStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(64, 61, 76)}):Play()
+			end)
+
+			-- Public API
+			function ResourceV:SetResource(name, value, animate)
+				for _, resource in ipairs(self.Resources) do
+					if resource.NameLabel.Text == name then
+						resource:SetValue(value, animate)
+						return
+					end
+				end
+				warn("Resource not found:", name)
+			end
+
+			function ResourceV:SetResourceMax(name, max)
+				for _, resource in ipairs(self.Resources) do
+					if resource.NameLabel.Text == name then
+						resource:SetMax(max)
+						return
+					end
+				end
+				warn("Resource not found:", name)
+			end
+
+			function ResourceV:GetResource(name)
+				for _, resource in ipairs(self.Resources) do
+					if resource.NameLabel.Text == name then
+						return {
+							Value = resource.CurrentValue,
+							Max = resource.MaxValue,
+							Color = resource.Color
+						}
+					end
+				end
+				return nil
+			end
+
+			function ResourceV:AddResource(resource)
+				local index = #self.Resources + 1
+				local resourceData = CreateResourceBar(resource, index)
+				table.insert(self.Resources, resourceData)
+				return resourceData
+			end
+
+			function ResourceV:RemoveResource(name)
+				for i, resource in ipairs(self.Resources) do
+					if resource.NameLabel.Text == name then
+						resource.Container:Destroy()
+						table.remove(self.Resources, i)
+						return true
+					end
+				end
+				return false
+			end
+
+			function ResourceV:Destroy()
+				Container.Visible = false
+				Container:Destroy()
+			end
+
+			-- Theme updates
+			PoltergeistUI.ThemeRemote:GetPropertyChangedSignal("Value"):Connect(function()
+				for _, resource in ipairs(self.Resources) do
+					resource.BarGradient.Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, resource.Color),
+						ColorSequenceKeypoint.new(1, resource.Color)
+					})
+				end
+			end)
+
+			return ResourceV
+		end
+
+		-- ================= Currency Display Element =================
+		function Tab:CreateCurrencyDisplay(CurrencySettings)
+			TabPage.Position = UDim2.new(0, 0, 0, 28)
+
+			CurrencySettings = Kwargify({
+				Name = "Currency",
+				Description = nil,
+				Currencies = {}, -- {Type, Amount, Icon, Color}
+				ShowIcons = true,
+				ShowLabels = true,
+				AnimateChanges = true,
+				AnimationSpeed = 0.5,
+				Layout = "Horizontal", -- "Horizontal", "Vertical", "Grid"
+				Columns = 3,
+				Callback = function(currencyType, amount)
+					-- Called when currency changes
+				end
+			}, CurrencySettings or {})
+
+			local CurrencyV = {
+				Settings = CurrencySettings,
+				Currencies = {}
+			}
+
+			-- Create container
+			local Container = Instance.new("Frame")
+			Container.Name = CurrencySettings.Name .. " - Currency"
+			Container.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+			Container.BackgroundTransparency = 1
+			Container.Size = UDim2.new(1, -25, 0, 0)
+			Container.AutomaticSize = Enum.AutomaticSize.Y
+			Container.Visible = true
+			Container.Parent = TabPage
+			local Theme = PoltergeistUI.ThemeRemote.Theme:Clone()
+			Theme.Parent = Container
+
+			-- Styling
+			local UICorner = Instance.new("UICorner", Container)
+			UICorner.CornerRadius = UDim.new(0, 6)
+
+			local UIStroke = Instance.new("UIStroke", Container)
+			UIStroke.Color = Color3.fromRGB(64, 61, 76)
+			UIStroke.Thickness = 1
+			UIStroke.Transparency = 1
+
+			local ContainerPadding = Instance.new("UIPadding", Container)
+			ContainerPadding.PaddingTop = UDim.new(0, 14)
+			ContainerPadding.PaddingBottom = UDim.new(0, 14)
+			ContainerPadding.PaddingLeft = UDim.new(0, 14)
+			ContainerPadding.PaddingRight = UDim.new(0, 14)
+
+			-- Title
+			local Title = Instance.new("TextLabel")
+			Title.BackgroundTransparency = 1
+			Title.Size = UDim2.new(1, 0, 0, 18)
+			Title.Font = Enum.Font.GothamMedium
+			Title.TextSize = 13
+			Title.TextColor3 = Color3.fromRGB(240, 240, 240)
+			Title.TextXAlignment = Enum.TextXAlignment.Left
+			Title.TextTransparency = 1
+			Title.Text = CurrencySettings.Name
+			Title.Parent = Container
+
+			-- Currencies container
+			local CurrenciesContainer = Instance.new("Frame")
+			CurrenciesContainer.BackgroundTransparency = 1
+			CurrenciesContainer.Position = UDim2.new(0, 0, 0, 26)
+			CurrenciesContainer.Size = UDim2.new(1, 0, 0, 0)
+			CurrenciesContainer.AutomaticSize = Enum.AutomaticSize.Y
+			CurrenciesContainer.Parent = Container
+
+			local CurrenciesLayout = Instance.new("UIListLayout", CurrenciesContainer)
+			CurrenciesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			CurrenciesLayout.Padding = UDim.new(0, 8)
+
+			if CurrencySettings.Layout == "Horizontal" then
+				CurrenciesLayout.FillDirection = Enum.FillDirection.Horizontal
+				CurrenciesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+			elseif CurrencySettings.Layout == "Grid" then
+				CurrenciesLayout.FillDirection = Enum.FillDirection.Horizontal
+				CurrenciesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+				CurrenciesLayout.Wraps = true
+			else -- Vertical
+				CurrenciesLayout.FillDirection = Enum.FillDirection.Vertical
+			end
+
+			-- Function to create a currency display
+			local function CreateCurrencyDisplay(currency, index)
+				local Card = Instance.new("Frame")
+				Card.BackgroundColor3 = Color3.fromRGB(40, 38, 47)
+				Card.BackgroundTransparency = 1
+				Card.Size = UDim2.new(
+					CurrencySettings.Layout == "Horizontal" and 1/#CurrencySettings.Currencies or 
+						CurrencySettings.Layout == "Grid" and 1/CurrencySettings.Columns or 
+						1,
+					0,
+					0,
+					50
+				)
+				local UIScale = Instance.new("UIScale", Card)
+				UIScale.Scale = 0.95
+				Card.LayoutOrder = index
+				Card.Parent = CurrenciesContainer
+
+				-- Corner
+				local CardCorner = Instance.new("UICorner", Card)
+				CardCorner.CornerRadius = UDim.new(0, 6)
+
+				-- Card stroke
+				local CardStroke = Instance.new("UIStroke", Card)
+				CardStroke.Color = Color3.fromRGB(64, 61, 76)
+				CardStroke.Thickness = 1
+				CardStroke.Transparency = 1
+
+				-- Icon
+				local Icon
+				if CurrencySettings.ShowIcons and currency.Icon then
+					Icon = Instance.new("ImageLabel")
+					Icon.BackgroundTransparency = 1
+					Icon.Position = UDim2.new(0, 12, 0.5, -16)
+					Icon.Size = UDim2.new(0, 32, 0, 32)
+					Icon.Image = GetIcon(currency.Icon, "Material")
+					Icon.ImageColor3 = currency.Color or Color3.fromRGB(255, 215, 0)
+					Icon.ImageTransparency = 1
+					Icon.Parent = Card
+				end
+
+				-- Amount label
+				local AmountLabel = Instance.new("TextLabel")
+				AmountLabel.BackgroundTransparency = 1
+				AmountLabel.Position = UDim2.new(Icon and 0.4 or 0, 12, 0, 10)
+				AmountLabel.Size = UDim2.new(0.6, -20, 0, 20)
+				AmountLabel.Font = Enum.Font.GothamBold
+				AmountLabel.TextSize = 18
+				AmountLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+				AmountLabel.TextXAlignment = Enum.TextXAlignment.Left
+				AmountLabel.TextTransparency = 1
+				AmountLabel.Text = tostring(currency.Amount or 0)
+				AmountLabel.Parent = Card
+
+				-- Type label
+				local TypeLabel
+				if CurrencySettings.ShowLabels then
+					TypeLabel = Instance.new("TextLabel")
+					TypeLabel.BackgroundTransparency = 1
+					TypeLabel.Position = UDim2.new(Icon and 0.4 or 0, 12, 0, 30)
+					TypeLabel.Size = UDim2.new(0.6, -20, 0, 16)
+					TypeLabel.Font = Enum.Font.Gotham
+					TypeLabel.TextSize = 11
+					TypeLabel.TextColor3 = Color3.fromRGB(160, 160, 160)
+					TypeLabel.TextXAlignment = Enum.TextXAlignment.Left
+					TypeLabel.TextTransparency = 1
+					TypeLabel.Text = currency.Type or "Currency"
+					TypeLabel.Parent = Card
+				end
+
+				-- Store data
+				local currencyData = {
+					Card = Card,
+					Icon = Icon,
+					AmountLabel = AmountLabel,
+					TypeLabel = TypeLabel,
+					CurrentAmount = currency.Amount or 0,
+					Type = currency.Type or "Currency",
+					Color = currency.Color or Color3.fromRGB(255, 215, 0)
+				}
+
+				-- Function to update amount with animation
+				function currencyData:SetAmount(newAmount, animate)
+					newAmount = tonumber(newAmount) or 0
+					local oldAmount = self.CurrentAmount
+					self.CurrentAmount = newAmount
+
+					-- Update label
+					if animate == false or not CurrencySettings.AnimateChanges then
+						self.AmountLabel.Text = self:FormatAmount(newAmount)
+					else
+						-- Animate counting
+						local startValue = oldAmount
+						local endValue = newAmount
+						local duration = CurrencySettings.AnimationSpeed or 0.5
+						local startTime = tick()
+
+						-- Cancel previous animation
+						if self.AnimationConnection then
+							self.AnimationConnection:Disconnect()
+						end
+
+						self.AnimationConnection = RunService.Heartbeat:Connect(function()
+							local elapsed = tick() - startTime
+							local progress = math.min(elapsed / duration, 1)
+
+							-- Ease function
+							local ease = 1 - math.pow(1 - progress, 3)
+
+							local currentValue = startValue + (endValue - startValue) * ease
+							self.AmountLabel.Text = self:FormatAmount(currentValue)
+
+							if progress >= 1 then
+								self.AmountLabel.Text = self:FormatAmount(endValue)
+								self.AnimationConnection:Disconnect()
+								self.AnimationConnection = nil
+							end
+						end)
+					end
+
+					-- Fire callback
+					local success, err = pcall(function()
+						CurrencySettings.Callback(self.Type, newAmount)
+					end)
+					if not success then
+						warn("Currency callback error:", err)
+					end
+				end
+
+				-- Format amount with K, M, B
+				function currencyData:FormatAmount(amount)
+					if amount >= 1000000000 then
+						return string.format("%.1fB", amount / 1000000000)
+					elseif amount >= 1000000 then
+						return string.format("%.1fM", amount / 1000000)
+					elseif amount >= 1000 then
+						return string.format("%.1fK", amount / 1000)
+					else
+						return string.format("%d", amount)
+					end
+				end
+
+				-- Function to set color
+				function currencyData:SetColor(newColor)
+					self.Color = newColor
+					if self.Icon then
+						self.Icon.ImageColor3 = newColor
+					end
+				end
+
+				-- Animate entry
+				TweenService:Create(Card, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+				TweenService:Create(CardStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+
+				if Icon then
+					TweenService:Create(Icon, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+				end
+
+				TweenService:Create(AmountLabel, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+				if TypeLabel then
+					TweenService:Create(TypeLabel, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				end
+
+				return currencyData
+			end
+
+			-- Create all currencies
+			for i, currency in ipairs(CurrencySettings.Currencies) do
+				local currencyData = CreateCurrencyDisplay(currency, i)
+				table.insert(CurrencyV.Currencies, currencyData)
+			end
+
+			-- Main container animations
+			TweenService:Create(Container, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+			TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+			TweenService:Create(Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+			-- Hover effects
+			Container.MouseEnter:Connect(function()
+				TweenService:Create(UIStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(87, 84, 104)}):Play()
+			end)
+			Container.MouseLeave:Connect(function()
+				TweenService:Create(UIStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(64, 61, 76)}):Play()
+			end)
+
+			-- Public API
+			function CurrencyV:SetCurrency(type, amount, animate)
+				for _, currency in ipairs(self.Currencies) do
+					if currency.Type == type then
+						currency:SetAmount(amount, animate)
+						return
+					end
+				end
+				warn("Currency not found:", type)
+			end
+
+			function CurrencyV:AddCurrency(type, amount, icon, color)
+				local newCurrency = {
+					Type = type,
+					Amount = amount or 0,
+					Icon = icon or "attach_money",
+					Color = color or Color3.fromRGB(255, 215, 0)
+				}
+				table.insert(CurrencySettings.Currencies, newCurrency)
+				local currencyData = CreateCurrencyDisplay(newCurrency, #self.Currencies + 1)
+				table.insert(self.Currencies, currencyData)
+				return currencyData
+			end
+
+			function CurrencyV:RemoveCurrency(type)
+				for i, currency in ipairs(self.Currencies) do
+					if currency.Type == type then
+						currency.Card:Destroy()
+						table.remove(self.Currencies, i)
+						return true
+					end
+				end
+				return false
+			end
+
+			function CurrencyV:GetCurrency(type)
+				for _, currency in ipairs(self.Currencies) do
+					if currency.Type == type then
+						return {
+							Amount = currency.CurrentAmount,
+							Type = currency.Type,
+							Color = currency.Color
+						}
+					end
+				end
+				return nil
+			end
+
+			function CurrencyV:Destroy()
+				Container.Visible = false
+				Container:Destroy()
+			end
+
+			return CurrencyV
+		end
+
 		-- Bind
 		function Tab:CreateBind(BindSettings, Flag)
 			local BindV = { Class = "Keybind", IgnoreConfig = false, Settings = BindSettings, Active = false }
@@ -6183,6 +7464,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Description = nil,
 				CurrentBind = "Q",
 				HoldToInteract = false, -- setting this makes the Bind in toggle mode
+				Badges = {},
 				Callback = function(Bind)
 					-- The function that takes place when the Bind is pressed
 					-- The variable (Bind) is a boolean for whether the Bind is being held or not (HoldToInteract needs to be true) or whether the Bind is currently active
@@ -6387,6 +7669,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Poltergeist.Options[Flag] = BindV
 			end
 
+			Poltergeist:BadgeFunction(Bind, BindSettings.Badges)
 			-- Poltergeist.Flags[BindSettings.Flag] = BindSettings
 
 			return BindV
@@ -6764,6 +8047,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 				CurrentOption = {"Option 1"},
 				MultipleOptions = false,
 				SpecialType = nil, -- currently onl player, might add more soon
+				Badges = {},
 				Callback = function(Options)
 					-- The function that takes place when the selected option is changed
 					-- The variable (Options) is a table of strings for the current selected options or a string if multioptions is false
@@ -6942,6 +8226,40 @@ function Poltergeist:CreateWindow(WindowSettings)
 				end
 			end
 
+			local Teams = game:GetService("Teams")
+
+			local function TeamsTableRefresh()
+				for i,v in pairs(DropdownSettings.Options) do
+					table.remove(DropdownSettings.Options, i)
+				end
+
+				for i,v in pairs(Teams:GetChildren()) do
+					table.insert(DropdownSettings.Options, v.Name)
+				end
+			end
+
+			local function LocalPlayerToolsRefresh()
+				for i,v in pairs(DropdownSettings.Options) do
+					table.remove(DropdownSettings.Options, i)
+				end
+
+				local Tools = {}
+
+				for i,v in pairs(game:GetService("Players").LocalPlayer.Backpack:GetChildren()) do
+					table.insert(Tools, v.Name)
+				end
+
+				for i,v in pairs(game:GetService("Players").LocalPlayer.Character:GetChildren()) do
+					if v:IsA("Tool") then
+						table.insert(Tools, v.Name)
+					end
+				end
+
+				for i,v in pairs(Tools) do
+					table.insert(DropdownSettings.Options, v)
+				end
+			end
+
 			Dropdown.Interact.MouseButton1Click:Connect(function()
 				Toggle()
 			end)
@@ -6965,6 +8283,25 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Players.PlayerAdded:Connect(function() PlayerTableRefresh() end)
 				Players.PlayerRemoving:Connect(function() PlayerTableRefresh() end)
 
+			elseif DropdownSettings.SpecialType == "Team" then
+				for i,v in pairs(DropdownSettings.Options) do
+					table.remove(DropdownSettings.Options, i)
+				end
+				TeamsTableRefresh()
+				DropdownSettings.CurrentOption = DropdownSettings.Options[1]
+				Teams.ChildAdded:Connect(function() TeamsTableRefresh() end)
+				Teams.ChildRemoved:Connect(function() TeamsTableRefresh() end)
+			elseif DropdownSettings.SpecialType == "Tools" then
+				for i,v in pairs(DropdownSettings.Options) do
+					table.remove(DropdownSettings.Options, i)
+				end
+				LocalPlayerToolsRefresh()
+				DropdownSettings.CurrentOption = DropdownSettings.Options[1]
+				game:GetService("Players").LocalPlayer.Backpack.ChildAdded:Connect(function() LocalPlayerToolsRefresh() end)
+				game:GetService("Players").LocalPlayer.Backpack.ChildRemoved:Connect(function() LocalPlayerToolsRefresh() end)
+				game:GetService("Players").LocalPlayer.Character.ChildAdded:Connect(function() LocalPlayerToolsRefresh() end)
+				game:GetService("Players").LocalPlayer.Character.ChildRemoved:Connect(function() LocalPlayerToolsRefresh() end)
+				game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function() LocalPlayerToolsRefresh() end)
 			end
 
 			Refresh()
@@ -7101,6 +8438,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 			-- Poltergeist.Flags[DropdownSettings.Flag] = DropdownSettings
 
+			Poltergeist:BadgeFunction(Dropdown, DropdownSettings.Badges)
 			Poltergeist:MakeDetachable(Dropdown, DropdownSettings.Name, "arrow_drop_down_circle")
 
 			return DropdownV
@@ -8133,19 +9471,34 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 		local installed = false
 		StatusBtn.MouseButton1Click:Connect(function()
-			if installed then return end
-			installed = true
-			StatusBtn.Text = "INSTALLED"
-			tween(StatusBtn, {BackgroundColor3 = Color3.fromRGB(46, 204, 113)})
-			tween(RowStroke, {Color = Color3.fromRGB(46, 204, 113), Transparency = 0.3})
+			if not installed then
+				installed = true
+				if plugin.OnUninstall then
+					StatusBtn.Text = "UNINSTALL"
+					tween(StatusBtn, {BackgroundColor3 = Color3.fromRGB(204, 46, 63)})
+					tween(RowStroke, {Color = Color3.fromRGB(204, 46, 63), Transparency = 0.3})
+				else
+					StatusBtn.Text = "INSTALLED"
+					tween(StatusBtn, {BackgroundColor3 = Color3.fromRGB(46, 204, 113)})
+					tween(RowStroke, {Color = Color3.fromRGB(46, 204, 113), Transparency = 0.3})
+				end
 
-			if plugin.OnInstall then plugin.OnInstall() end
+				if plugin.OnInstall then plugin.OnInstall() end
 
-			Poltergeist:Notification({
-				Title = "Plugins",
-				Content = plugin.Name .. " has been installed.",
-				Icon = plugin.Icon or "extension"
-			})
+				Poltergeist:Notification({
+					Title = "Plugins",
+					Content = plugin.Name .. " has been installed.",
+					Icon = plugin.Icon or "extension"
+				})
+			else
+				if plugin.OnUninstall then
+					plugin.OnUninstall()
+					installed = false
+					StatusBtn.Text = "INSTALL"
+					tween(StatusBtn, {BackgroundColor3 = Color3.fromRGB(224, 138, 175)})
+					tween(RowStroke, {Color = Color3.fromRGB(224, 138, 175), Transparency = 0.5})
+				end
+			end
 		end)
 	end
 
@@ -8228,6 +9581,559 @@ function Poltergeist:CreateWindow(WindowSettings)
 
 		Draggable(PPHeader, PluginsPanel)
 	end
+
+	local HUB_CREATOR_PASSWORD = "coolguestroblox"
+	local hubCreatorUnlocked = false
+
+	local function EscapeLuaString(str)
+		return tostring(str):gsub("\\", "\\\\"):gsub("\"", "\\\""):gsub("\n", "\\n")
+	end
+
+	function CreateHubCreatorTab()
+		local HCTab = Window:CreateTab({Name = "Hub Creator", Icon = "construction"})
+
+		-- ===== Password Gate =====
+		local GateHolder = Instance.new("Frame")
+		GateHolder.Name = "HubCreatorGate"
+		GateHolder.AnchorPoint = Vector2.new(0.5, 0)
+		GateHolder.Position = UDim2.new(0.5, 0, 0, 40)
+		GateHolder.Size = UDim2.new(0, 260, 0, 140)
+		GateHolder.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+		GateHolder.BackgroundTransparency = 1
+		GateHolder.Parent = HCTab.Page
+
+		Instance.new("UICorner", GateHolder).CornerRadius = UDim.new(0, 8)
+		local GateStroke = Instance.new("UIStroke", GateHolder)
+		GateStroke.Color = Color3.fromRGB(64, 61, 76)
+		GateStroke.Thickness = 1
+		GateStroke.Transparency = 1
+
+		local GateTitle = Instance.new("TextLabel")
+		GateTitle.BackgroundTransparency = 1
+		GateTitle.Position = UDim2.new(0, 0, 0, 16)
+		GateTitle.Size = UDim2.new(1, 0, 0, 22)
+		GateTitle.Font = Enum.Font.GothamBold
+		GateTitle.TextSize = 17
+		GateTitle.TextColor3 = Color3.fromRGB(240, 240, 240)
+		GateTitle.Text = "Hub Creator"
+		GateTitle.TextTransparency = 1
+		GateTitle.Parent = GateHolder
+
+		local GateDesc = Instance.new("TextLabel")
+		GateDesc.BackgroundTransparency = 1
+		GateDesc.Position = UDim2.new(0, 0, 0, 40)
+		GateDesc.Size = UDim2.new(1, 0, 0, 16)
+		GateDesc.Font = Enum.Font.Gotham
+		GateDesc.TextSize = 12
+		GateDesc.TextColor3 = Color3.fromRGB(150, 150, 150)
+		GateDesc.Text = "Hub Creator need a Password"
+		GateDesc.TextTransparency = 1
+		GateDesc.Parent = GateHolder
+
+		local PassBox = Instance.new("TextBox")
+		PassBox.AnchorPoint = Vector2.new(0.5, 0)
+		PassBox.Position = UDim2.new(0.5, 0, 0, 68)
+		PassBox.Size = UDim2.new(0, 200, 0, 30)
+		PassBox.BackgroundColor3 = Color3.fromRGB(24, 22, 29)
+		PassBox.BackgroundTransparency = 1
+		PassBox.PlaceholderText = "Password..."
+		PassBox.Text = ""
+		PassBox.Font = Enum.Font.Gotham
+		PassBox.TextSize = 13
+		PassBox.TextColor3 = Color3.fromRGB(230, 230, 230)
+		PassBox.ClearTextOnFocus = false
+		PassBox.TextTransparency = 1
+		PassBox.Parent = GateHolder
+		Instance.new("UICorner", PassBox).CornerRadius = UDim.new(0, 6)
+		local PassStroke = Instance.new("UIStroke", PassBox)
+		PassStroke.Color = Color3.fromRGB(64, 61, 76)
+		PassStroke.Thickness = 1
+		PassStroke.Transparency = 1
+
+		local ErrorLabel = Instance.new("TextLabel")
+		ErrorLabel.BackgroundTransparency = 1
+		ErrorLabel.Position = UDim2.new(0, 0, 0, 106)
+		ErrorLabel.Size = UDim2.new(1, 0, 0, 14)
+		ErrorLabel.Font = Enum.Font.Gotham
+		ErrorLabel.TextSize = 11
+		ErrorLabel.TextColor3 = Color3.fromRGB(255, 110, 110)
+		ErrorLabel.Text = ""
+		ErrorLabel.TextTransparency = 1
+		ErrorLabel.Parent = GateHolder
+
+		TweenService:Create(GateHolder, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+		TweenService:Create(GateStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+		TweenService:Create(GateTitle, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+		TweenService:Create(GateDesc, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+		TweenService:Create(PassBox, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0, TextTransparency = 0}):Play()
+		TweenService:Create(PassStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 0.3}):Play()
+
+		-- ===== Generator (built as real native-looking elements, parented directly to the TabPage) =====
+		local ELEMENT_TYPES = {"Toggle", "Button", "Label", "Slider", "Input", "Dropdown", "ColorPicker"}
+		local selectedType = "Toggle"
+
+		local TypeSelectRow = Instance.new("Frame")
+		TypeSelectRow.Name = "TypeSelectRow"
+		TypeSelectRow.BackgroundTransparency = 1
+		TypeSelectRow.Size = UDim2.new(1, -25, 0, 30)
+		TypeSelectRow.Visible = false
+		TypeSelectRow.Parent = HCTab.Page
+
+		local TypeLayout = Instance.new("UIListLayout", TypeSelectRow)
+		TypeLayout.FillDirection = Enum.FillDirection.Horizontal
+		TypeLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		TypeLayout.Padding = UDim.new(0, 6)
+		TypeLayout.Wraps = true
+
+		local FormHolder = Instance.new("Frame")
+		FormHolder.Name = "HubCreatorForm"
+		FormHolder.BackgroundColor3 = Color3.fromRGB(28, 26, 33)
+		FormHolder.Size = UDim2.new(1, -25, 0, 0)
+		FormHolder.AutomaticSize = Enum.AutomaticSize.Y
+		FormHolder.BackgroundTransparency = 1
+		FormHolder.Visible = false
+		FormHolder.Parent = HCTab.Page
+
+		Instance.new("UICorner", FormHolder).CornerRadius = UDim.new(0, 8)
+		local FormStroke = Instance.new("UIStroke", FormHolder)
+		FormStroke.Color = Color3.fromRGB(64, 61, 76)
+		FormStroke.Thickness = 1
+		FormStroke.Transparency = 1
+
+		local FormPadding = Instance.new("UIPadding", FormHolder)
+		FormPadding.PaddingTop = UDim.new(0, 16)
+		FormPadding.PaddingBottom = UDim.new(0, 16)
+		FormPadding.PaddingLeft = UDim.new(0, 16)
+		FormPadding.PaddingRight = UDim.new(0, 16)
+
+		local FormLayout = Instance.new("UIListLayout", FormHolder)
+		FormLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		FormLayout.Padding = UDim.new(0, 10)
+
+		local FormHeader = Instance.new("TextLabel")
+		FormHeader.BackgroundTransparency = 1
+		FormHeader.Size = UDim2.new(1, 0, 0, 18)
+		FormHeader.Font = Enum.Font.GothamBold
+		FormHeader.TextSize = 14
+		FormHeader.TextColor3 = Color3.fromRGB(240, 240, 240)
+		FormHeader.TextXAlignment = Enum.TextXAlignment.Left
+		FormHeader.LayoutOrder = 0
+		FormHeader.Text = "Toggle Creator"
+		FormHeader.Parent = FormHolder
+
+		local FormDesc = Instance.new("TextLabel")
+		FormDesc.BackgroundTransparency = 1
+		FormDesc.Size = UDim2.new(1, 0, 0, 14)
+		FormDesc.Font = Enum.Font.Gotham
+		FormDesc.TextSize = 11
+		FormDesc.TextColor3 = Color3.fromRGB(150, 150, 150)
+		FormDesc.TextXAlignment = Enum.TextXAlignment.Left
+		FormDesc.LayoutOrder = 1
+		FormDesc.Text = "Creates a toggle."
+		FormDesc.Parent = FormHolder
+
+		local function MakeField(order, labelText)
+			local Field = Instance.new("Frame")
+			Field.BackgroundTransparency = 1
+			Field.Size = UDim2.new(1, 0, 0, 40)
+			Field.LayoutOrder = order
+			Field.Parent = FormHolder
+
+			local Label = Instance.new("TextLabel")
+			Label.Name = "FieldLabel"
+			Label.BackgroundTransparency = 1
+			Label.Size = UDim2.new(1, 0, 0, 14)
+			Label.Font = Enum.Font.GothamMedium
+			Label.TextSize = 11
+			Label.TextColor3 = Color3.fromRGB(190, 190, 190)
+			Label.TextXAlignment = Enum.TextXAlignment.Left
+			Label.Text = labelText
+			Label.Parent = Field
+
+			local Box = Instance.new("TextBox")
+			Box.Position = UDim2.new(0, 0, 0, 18)
+			Box.Size = UDim2.new(1, 0, 0, 26)
+			Box.BackgroundColor3 = Color3.fromRGB(24, 22, 29)
+			Box.PlaceholderText = "..."
+			Box.Text = ""
+			Box.Font = Enum.Font.Gotham
+			Box.TextSize = 12
+			Box.TextColor3 = Color3.fromRGB(230, 230, 230)
+			Box.TextXAlignment = Enum.TextXAlignment.Left
+			Box.ClearTextOnFocus = false
+			Box.Parent = Field
+			Instance.new("UICorner", Box).CornerRadius = UDim.new(0, 5)
+			local BStroke = Instance.new("UIStroke", Box)
+			BStroke.Color = Color3.fromRGB(64, 61, 76)
+			BStroke.Thickness = 1
+
+			local BoxPadding = Instance.new("UIPadding", Box)
+			BoxPadding.PaddingLeft = UDim.new(0, 8)
+			BoxPadding.PaddingRight = UDim.new(0, 8)
+
+			return Field, Box, Label
+		end
+
+		-- Campos comuns
+		local TitleField, TitleBox = MakeField(2, "Title:")
+		local DescField, DescBox = MakeField(3, "Description (optional):")
+		local ValueField, ValueBox, ValueLabel = MakeField(4, "Current Value (optional):")
+
+		-- Toggle True/False: pill dividida 50/50 por Scale, nunca se sobrepõe nem "gruda"
+		local BoolRow = Instance.new("Frame")
+		BoolRow.BackgroundTransparency = 1
+		BoolRow.Size = UDim2.new(1, 0, 0, 44)
+		BoolRow.LayoutOrder = 5
+		BoolRow.Parent = FormHolder
+
+		local BoolLabel = Instance.new("TextLabel")
+		BoolLabel.BackgroundTransparency = 1
+		BoolLabel.Size = UDim2.new(1, 0, 0, 14)
+		BoolLabel.Font = Enum.Font.GothamMedium
+		BoolLabel.TextSize = 11
+		BoolLabel.TextColor3 = Color3.fromRGB(190, 190, 190)
+		BoolLabel.TextXAlignment = Enum.TextXAlignment.Left
+		BoolLabel.Text = "Initial Value (True or False):"
+		BoolLabel.Parent = BoolRow
+
+		local BoolPill = Instance.new("Frame")
+		BoolPill.Position = UDim2.new(0, 0, 0, 18)
+		BoolPill.Size = UDim2.new(0, 180, 0, 26)
+		BoolPill.BackgroundColor3 = Color3.fromRGB(24, 22, 29)
+		BoolPill.Parent = BoolRow
+		Instance.new("UICorner", BoolPill).CornerRadius = UDim.new(0, 6)
+		local BoolPillStroke = Instance.new("UIStroke", BoolPill)
+		BoolPillStroke.Color = Color3.fromRGB(64, 61, 76)
+		BoolPillStroke.Thickness = 1
+
+		local selectedBool = true
+		local TrueBtn, FalseBtn
+
+		local function MakeBoolButton(text, value, leftHalf)
+			local Btn = Instance.new("TextButton")
+			Btn.Position = leftHalf and UDim2.new(0, 3, 0, 3) or UDim2.new(0.5, 2, 0, 3)
+			Btn.Size = UDim2.new(0.5, -5, 1, -6) -- Scale 50/50 real: nunca se sobrepõe, seja qual for o texto
+			Btn.BackgroundColor3 = Color3.fromRGB(40, 38, 47)
+			Btn.AutoButtonColor = false
+			Btn.Font = Enum.Font.GothamBold
+			Btn.TextSize = 12
+			Btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+			Btn.Text = text
+			Btn.Parent = BoolPill
+			Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 4)
+			return Btn
+		end
+
+		local function RefreshBoolButtons()
+			tween(TrueBtn, {BackgroundColor3 = selectedBool and Poltergeist:GetThemeColor() or Color3.fromRGB(40, 38, 47)})
+			tween(TrueBtn, {TextColor3 = selectedBool and Color3.fromRGB(24, 22, 29) or Color3.fromRGB(200, 200, 200)})
+			tween(FalseBtn, {BackgroundColor3 = (not selectedBool) and Poltergeist:GetThemeColor() or Color3.fromRGB(40, 38, 47)})
+			tween(FalseBtn, {TextColor3 = (not selectedBool) and Color3.fromRGB(24, 22, 29) or Color3.fromRGB(200, 200, 200)})
+		end
+
+		TrueBtn = MakeBoolButton("True", true, true)
+		FalseBtn = MakeBoolButton("False", false, false)
+		TrueBtn.MouseButton1Click:Connect(function() selectedBool = true RefreshBoolButtons() end)
+		FalseBtn.MouseButton1Click:Connect(function() selectedBool = false RefreshBoolButtons() end)
+		RefreshBoolButtons()
+
+		-- Editor de código grande
+		local CodeLabel = Instance.new("TextLabel")
+		CodeLabel.BackgroundTransparency = 1
+		CodeLabel.Size = UDim2.new(1, 0, 0, 14)
+		CodeLabel.Font = Enum.Font.GothamMedium
+		CodeLabel.TextSize = 11
+		CodeLabel.TextColor3 = Color3.fromRGB(190, 190, 190)
+		CodeLabel.TextXAlignment = Enum.TextXAlignment.Left
+		CodeLabel.LayoutOrder = 6
+		CodeLabel.Text = "Callback Script:"
+		CodeLabel.Parent = FormHolder
+
+		local CodeScroll = Instance.new("ScrollingFrame")
+		CodeScroll.BackgroundColor3 = Color3.fromRGB(24, 22, 29)
+		CodeScroll.Size = UDim2.new(1, 0, 0, 140)
+		CodeScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+		CodeScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		CodeScroll.ScrollBarThickness = 4
+		CodeScroll.LayoutOrder = 7
+		CodeScroll.Parent = FormHolder
+		Instance.new("UICorner", CodeScroll).CornerRadius = UDim.new(0, 6)
+		local CodeStroke = Instance.new("UIStroke", CodeScroll)
+		CodeStroke.Color = Color3.fromRGB(64, 61, 76)
+		CodeStroke.Thickness = 1
+
+		local CodeBox = Instance.new("TextBox")
+		CodeBox.BackgroundTransparency = 1
+		CodeBox.Position = UDim2.new(0, 8, 0, 6)
+		CodeBox.Size = UDim2.new(1, -16, 0, 0)
+		CodeBox.AutomaticSize = Enum.AutomaticSize.Y
+		CodeBox.Font = Enum.Font.Code
+		CodeBox.TextSize = 12
+		CodeBox.TextColor3 = Color3.fromRGB(225, 225, 225)
+		CodeBox.PlaceholderText = "-- Script here.."
+		CodeBox.Text = ""
+		CodeBox.MultiLine = true
+		CodeBox.ClearTextOnFocus = false
+		CodeBox.TextXAlignment = Enum.TextXAlignment.Left
+		CodeBox.TextYAlignment = Enum.TextYAlignment.Top
+		CodeBox.TextWrapped = true
+		CodeBox.Parent = CodeScroll
+
+		local CreateBtn = Instance.new("TextButton")
+		CreateBtn.Size = UDim2.new(1, 0, 0, 34)
+		CreateBtn.BackgroundColor3 = Poltergeist:GetThemeColor()
+		CreateBtn.AutoButtonColor = false
+		CreateBtn.Font = Enum.Font.GothamBold
+		CreateBtn.TextSize = 13
+		CreateBtn.TextColor3 = Color3.fromRGB(24, 22, 29)
+		CreateBtn.LayoutOrder = 8
+		CreateBtn.Text = "Create Toggle"
+		CreateBtn.Parent = FormHolder
+		Instance.new("UICorner", CreateBtn).CornerRadius = UDim.new(0, 6)
+
+		Poltergeist:RegisterThemedColor(CreateBtn, "BackgroundColor3")
+
+		local function UpdateFormForType(typeName)
+			selectedType = typeName
+			FormHeader.Text = typeName .. " Creator"
+			FormDesc.Text = "Creates a " .. typeName:lower() .. "."
+			CreateBtn.Text = "Create " .. typeName
+
+			BoolRow.Visible = (typeName == "Toggle")
+			ValueField.Visible = not (typeName == "Button" or typeName == "Label" or typeName == "Toggle")
+
+			if typeName == "Slider" then
+				ValueLabel.Text = "Default Value (number, optional):"
+				ValueBox.PlaceholderText = "e.g. 50"
+			elseif typeName == "Input" then
+				ValueLabel.Text = "Placeholder Text (optional):"
+				ValueBox.PlaceholderText = "e.g. Type here..."
+			elseif typeName == "Dropdown" then
+				ValueLabel.Text = "Options, comma separated (optional):"
+				ValueBox.PlaceholderText = "e.g. Option 1, Option 2, Option 3"
+			elseif typeName == "ColorPicker" then
+				ValueLabel.Text = "Default Color, hex (optional):"
+				ValueBox.PlaceholderText = "e.g. #E08AB8"
+			end
+		end
+
+		for _, typeName in ipairs(ELEMENT_TYPES) do
+			local TypeBtn = Instance.new("TextButton")
+			TypeBtn.AutomaticSize = Enum.AutomaticSize.X
+			TypeBtn.Size = UDim2.new(0, 0, 0, 26)
+			TypeBtn.BackgroundColor3 = Color3.fromRGB(40, 38, 47)
+			TypeBtn.AutoButtonColor = false
+			TypeBtn.Font = Enum.Font.GothamMedium
+			TypeBtn.TextSize = 11
+			TypeBtn.TextColor3 = Color3.fromRGB(210, 210, 210)
+			TypeBtn.Text = typeName
+			TypeBtn.Parent = TypeSelectRow
+			Instance.new("UICorner", TypeBtn).CornerRadius = UDim.new(0, 5)
+			local TPad = Instance.new("UIPadding", TypeBtn)
+			TPad.PaddingLeft = UDim.new(0, 10)
+			TPad.PaddingRight = UDim.new(0, 10)
+
+			TypeBtn.MouseButton1Click:Connect(function()
+				for _, sibling in ipairs(TypeSelectRow:GetChildren()) do
+					if sibling:IsA("TextButton") then tween(sibling, {BackgroundColor3 = Color3.fromRGB(40, 38, 47)}) end
+				end
+				tween(TypeBtn, {BackgroundColor3 = Poltergeist:GetThemeColor()})
+				UpdateFormForType(typeName)
+			end)
+
+			if typeName == "Toggle" then tween(TypeBtn, {BackgroundColor3 = Poltergeist:GetThemeColor()}) end
+		end
+
+		-- Geração real de código Lua + copiar pra área de transferência
+		CreateBtn.MouseButton1Click:Connect(function()
+			local title = TitleBox.Text ~= "" and TitleBox.Text or ("My " .. selectedType)
+			local desc = DescBox.Text ~= "" and DescBox.Text or nil
+			local scriptText = CodeBox.Text ~= "" and CodeBox.Text or "\t\t-- your code here"
+
+			local lines = {}
+			local function add(line) table.insert(lines, line) end
+
+			local function AddNameDesc(paramSignature)
+				add("Tab:Create" .. selectedType .. "({")
+				add("\tName = \"" .. EscapeLuaString(title) .. "\",")
+				if desc then
+					add("\tDescription = \"" .. EscapeLuaString(desc) .. "\",")
+				end
+				return paramSignature
+			end
+
+			if selectedType == "Toggle" then
+				add("Tab:CreateToggle({")
+				add("\tName = \"" .. EscapeLuaString(title) .. "\",")
+				if desc then add("\tDescription = \"" .. EscapeLuaString(desc) .. "\",") end
+				add("\tCurrentValue = " .. tostring(selectedBool) .. ",")
+				add("\tCallback = function(Value)")
+				add(scriptText)
+				add("\tend")
+				add("})")
+
+			elseif selectedType == "Button" then
+				add("Tab:CreateButton({")
+				add("\tName = \"" .. EscapeLuaString(title) .. "\",")
+				if desc then add("\tDescription = \"" .. EscapeLuaString(desc) .. "\",") end
+				add("\tCallback = function()")
+				add(scriptText)
+				add("\tend")
+				add("})")
+
+			elseif selectedType == "Label" then
+				add("Tab:CreateLabel({")
+				add("\tText = \"" .. EscapeLuaString(title) .. "\",")
+				add("})")
+
+			elseif selectedType == "Slider" then
+				local defaultVal = tonumber(ValueBox.Text) or 50
+				add("Tab:CreateSlider({")
+				add("\tName = \"" .. EscapeLuaString(title) .. "\",")
+				if desc then add("\tDescription = \"" .. EscapeLuaString(desc) .. "\",") end
+				add("\tRange = {0, 100},")
+				add("\tIncrement = 1,")
+				add("\tCurrentValue = " .. tostring(defaultVal) .. ",")
+				add("\tCallback = function(Value)")
+				add(scriptText)
+				add("\tend")
+				add("})")
+
+			elseif selectedType == "Input" then
+				add("Tab:CreateInput({")
+				add("\tName = \"" .. EscapeLuaString(title) .. "\",")
+				if desc then add("\tDescription = \"" .. EscapeLuaString(desc) .. "\",") end
+				add("\tPlaceholderText = \"" .. EscapeLuaString(ValueBox.Text ~= "" and ValueBox.Text or "Type here...") .. "\",")
+				add("\tCallback = function(Value)")
+				add(scriptText)
+				add("\tend")
+				add("})")
+
+			elseif selectedType == "Dropdown" then
+				local optionsList = {}
+				if ValueBox.Text ~= "" then
+					for opt in ValueBox.Text:gmatch("[^,]+") do
+						table.insert(optionsList, opt:gsub("^%s+", ""):gsub("%s+$", ""))
+					end
+				end
+				if #optionsList == 0 then optionsList = {"Option 1", "Option 2"} end
+
+				local optStrings = {}
+				for _, opt in ipairs(optionsList) do
+					table.insert(optStrings, "\"" .. EscapeLuaString(opt) .. "\"")
+				end
+
+				add("Tab:CreateDropdown({")
+				add("\tName = \"" .. EscapeLuaString(title) .. "\",")
+				if desc then add("\tDescription = \"" .. EscapeLuaString(desc) .. "\",") end
+				add("\tOptions = {" .. table.concat(optStrings, ", ") .. "},")
+				add("\tCallback = function(Options)")
+				add(scriptText)
+				add("\tend")
+				add("})")
+
+			elseif selectedType == "ColorPicker" then
+				local colorLine = "Color3.fromRGB(255, 255, 255)"
+				local hexText = ValueBox.Text:gsub("^#", "")
+				if #hexText == 6 then
+					local r, g, b = hexText:sub(1,2), hexText:sub(3,4), hexText:sub(5,6)
+					local rn, gn, bn = tonumber(r, 16), tonumber(g, 16), tonumber(b, 16)
+					if rn and gn and bn then
+						colorLine = string.format("Color3.fromRGB(%d, %d, %d)", rn, gn, bn)
+					end
+				end
+
+				add("Tab:CreateColorPicker({")
+				add("\tName = \"" .. EscapeLuaString(title) .. "\",")
+				if desc then add("\tDescription = \"" .. EscapeLuaString(desc) .. "\",") end
+				add("\tColor = " .. colorLine .. ",")
+				add("\tCallback = function(Value)")
+				add(scriptText)
+				add("\tend")
+				add("})")
+			end
+
+			local generatedCode = table.concat(lines, "\n")
+
+			local copied = false
+			if setclipboard then
+				local ok = pcall(function() setclipboard(generatedCode) end)
+				copied = ok
+			end
+
+			if copied then
+				Poltergeist:Notification({Title = "Hub Creator", Content = title .. " code copied to clipboard!", Icon = "check_circle"})
+			else
+				Poltergeist:Notification({Title = "Hub Creator", Content = "Your executor doesn't support setclipboard.", Icon = "dangerous"})
+			end
+		end)
+
+		UpdateFormForType("Toggle")
+
+		local function PlayUnlockAnimation()
+			TweenService:Create(GateHolder, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+				Size = UDim2.new(0, 0, 0, 0),
+				BackgroundTransparency = 1
+			}):Play()
+			TweenService:Create(GateStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+			TweenService:Create(GateTitle, TweenInfo.new(0.25, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+			TweenService:Create(GateDesc, TweenInfo.new(0.25, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+			TweenService:Create(PassBox, TweenInfo.new(0.25, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1, TextTransparency = 1}):Play()
+			TweenService:Create(PassStroke, TweenInfo.new(0.25, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+
+			local ScanLine = Instance.new("Frame")
+			ScanLine.BackgroundColor3 = Poltergeist:GetThemeColor()
+			ScanLine.BorderSizePixel = 0
+			ScanLine.AnchorPoint = Vector2.new(0.5, 0)
+			ScanLine.Position = UDim2.new(0.5, 0, 0, 40)
+			ScanLine.Size = UDim2.new(0, 260, 0, 2)
+			ScanLine.ZIndex = 10
+			ScanLine.Parent = HCTab.Page
+
+			task.wait(0.35)
+			GateHolder.Visible = false
+
+			TypeSelectRow.Visible = true
+			FormHolder.Visible = true
+			for _, sibling in ipairs(TypeSelectRow:GetChildren()) do
+				if sibling:IsA("TextButton") then sibling.BackgroundTransparency = 1 end
+			end
+
+			TweenService:Create(ScanLine, TweenInfo.new(0.5, Enum.EasingStyle.Quad), {Position = UDim2.new(0.5, 0, 1, 0)}):Play()
+			task.wait(0.5)
+			ScanLine:Destroy()
+
+			TweenService:Create(FormStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+			for _, sibling in ipairs(TypeSelectRow:GetChildren()) do
+				if sibling:IsA("TextButton") then TweenService:Create(sibling, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play() end
+			end
+		end
+
+		local function TryUnlock()
+			if PassBox.Text == HUB_CREATOR_PASSWORD then
+				hubCreatorUnlocked = true
+				PlayUnlockAnimation()
+			else
+				ErrorLabel.Text = "Incorrect password."
+				TweenService:Create(ErrorLabel, TweenInfo.new(0.2), {TextTransparency = 0}):Play()
+				tween(GateStroke, {Color = Color3.fromRGB(255, 90, 90)})
+				task.wait(0.3)
+				tween(GateStroke, {Color = Color3.fromRGB(64, 61, 76)})
+			end
+		end
+
+		PassBox.FocusLost:Connect(function(enterPressed)
+			if enterPressed then TryUnlock() end
+		end)
+	end
+
+
+	table.insert(PluginList, {
+		Name = "Hub Creator",
+		Description = "Visually create UI elements with a live generator.",
+		Icon = "construction",
+		OnInstall = function() CreateHubCreatorTab() end,
+	})
 
 	BuildPluginsPanel()
 
@@ -8342,7 +10248,7 @@ if isStudio then
 			})
 		end,
 	})
-	
+
 	Tabs.Main:CreateRangeSlider({
 		Name = "Price Range",
 		Range = {0, 100},
@@ -8355,6 +10261,27 @@ if isStudio then
 	})
 	Tabs.Main:CreateSection("Section Example")
 	Tabs.Main:CreateButton({
+		Name = "Delete Data",
+		Description = "Delete all saved data",
+
+		Callback = function()
+			Tabs.Main:CreateConfirmation({
+				Title = "Delete Data",
+				Text = "Are you sure you want to delete all your data?",
+				ConfirmText = "Delete",
+				CancelText = "Cancel",
+
+				Callback = function(result)
+					if result then
+						print("Confirmado")
+					else
+						print("Cancelado")
+					end
+				end
+			})
+		end
+	})
+	Tabs.Main:CreateButton({
 		Name = "Button Example!",
 		Description = "Every Element Except For Sliders Can Have a description like this"
 	})
@@ -8366,6 +10293,14 @@ if isStudio then
 		Text = "Information Example",
 		Style = 2
 	})
+	local Timer = Tabs.Main:CreateTimer({
+		Name = "Timer",
+		Callback = function()
+			print("Goal atingido!")
+		end
+	})
+	Timer:Goal(60)
+	Timer:Start()
 	Tabs.Main:CreateLabel({
 		Text = "Warning Example",
 		Style = 3
@@ -8392,6 +10327,7 @@ if isStudio then
 		Description = "Btw Using CreateKeybind is deprecated, use CreateBind For Future Binds :)",
 		CurrentKeybind = "Q",
 		HoldToInteract = false,
+		Badges = {4,5},
 	})
 	Tabs.Main:CreateInput({
 		Name = "Dynamic Input Example",
@@ -8408,9 +10344,59 @@ if isStudio then
 		Options = {"Option 1","Option 2","Option 3","Option 4","Option 5","Option 6"},
 		CurrentOption = "Option 1",
 		MultipleOptions = false,
-		SpecialType = nil
+		SpecialType = nil,
+		Badges = {1},
+	})
+	local Tab = Tabs.Main
+	local resources = Tab:CreateResourceBar({
+		Name = "Character Status",
+		Description = "Monitor your character's resources",
+		Resources = {
+			{Name = "Health", Value = 80, Max = 100, Color = Color3.fromRGB(255, 50, 50)},
+			{Name = "Mana", Value = 60, Max = 100, Color = Color3.fromRGB(50, 150, 255)},
+			{Name = "Stamina", Value = 40, Max = 100, Color = Color3.fromRGB(255, 200, 50)}
+		},
+		ShowValues = true,
+		ShowPercentage = true,
+		AnimateChanges = true,
+		Orientation = "Vertical",
+		Callback = function(name, value)
+			print(name, "changed to", value)
+		end
 	})
 
+	-- Atualizar recursos depois de 5 segundos
+	task.wait(5)
+	resources:SetResource("Health", 50, true)
+	resources:SetResource("Mana", 90, true)
+
+	-- 3. Currency Display
+	local currencies = Tab:CreateCurrencyDisplay({
+		Name = "Wallet",
+		Description = "Your current currencies",
+		Currencies = {
+			{Type = "Coins", Amount = 1500, Icon = "money", Color = Color3.fromRGB(255, 215, 0)},
+			{Type = "Gems", Amount = 75, Icon = "star", Color = Color3.fromRGB(255, 0, 200)},
+			{Type = "Tokens", Amount = 3, Icon = "loyalty", Color = Color3.fromRGB(100, 200, 255)}
+		},
+		ShowIcons = true,
+		ShowLabels = true,
+		AnimateChanges = true,
+		AnimationSpeed = 1.0,
+		Layout = "Grid",
+		Columns = 3,
+		Callback = function(type, amount)
+			print(type, "now has", amount)
+		end
+	})
+
+	-- Adicionar nova moeda
+	currencies:AddCurrency("Crystals", 50, "rule", Color3.fromRGB(150, 255, 255))
+
+	-- Atualizar moeda com animação
+	task.wait(3)
+	currencies:SetCurrency("Coins", 2500, true)
+	currencies:SetCurrency("Gems", 100, true)
 	Tabs.Main:CreateColorPicker({
 		Name = "Color Picker Example",
 		Color = Color3.fromRGB(86, 171, 128),
@@ -8425,7 +10411,8 @@ if isStudio then
 	Tabs.Main2:CreateToggle({
 		Name = "Toggle - Default On",
 		Description = "Toggles Can be Onned By Default!",
-		CurrentValue = true
+		CurrentValue = true,
+		Badges = {1,2},
 	})
 	Tabs.Main2:CreateBind({
 		Name = "Hold To Interact - Walkspeed Example",
@@ -8468,6 +10455,22 @@ if isStudio then
 		CurrentOption = {"same here, itll be the first option"},
 		MultipleOptions = false,
 		SpecialType = "Player"
+	})
+	Tabs.Main2:CreateDropdown({
+		Name = "Dropdown - Tools",
+		Description = "Poltergeist's Dropdowns Has a built in Tools Dropdown!",
+		Options = {"u can put anything here, it wont be shown anyway"},
+		CurrentOption = {"same here, itll be the first option"},
+		MultipleOptions = false,
+		SpecialType = "Tools"
+	})
+	Tabs.Main2:CreateDropdown({
+		Name = "Dropdown - Teams",
+		Description = "Poltergeist's Dropdowns Has a built in Teams Dropdown!",
+		Options = {"u can put anything here, it wont be shown anyway"},
+		CurrentOption = {"same here, itll be the first option"},
+		MultipleOptions = false,
+		SpecialType = "Team"
 	})
 
 	local s = Tabs.Premium:CreateSection("You can add elements inside section too")
