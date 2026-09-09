@@ -1874,7 +1874,7 @@ local function unpackt(array : table)
 end
 
 -- Interface Management
-local PoltergeistUI = isStudio and script.Parent:WaitForChild("Poltergeist UI") or game:GetObjects("rbxassetid://76511873688102")[1]
+local PoltergeistUI = isStudio and script.Parent:WaitForChild("Poltergeist UI") or game:GetObjects("rbxassetid://87719073781017")[1]
 
 local SizeBleh = nil
 
