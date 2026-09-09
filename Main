@@ -23,15 +23,15 @@ Deity/dp4pv/x64x70 | Certain Scripting and Testing ig
 
 ]]
 
-local Release = "v1.3.2"
+local Release = "v1.3.3"
 
 local Poltergeist = {
 	Folder = "Poltergeist",
 	Options = {},
 	ThemeGradient = ColorSequence.new({
-		ColorSequenceKeypoint.new(0.0, Color3.fromRGB(0, 224, 63)),
-		ColorSequenceKeypoint.new(0.50, Color3.fromRGB(0, 224, 63)),
-		ColorSequenceKeypoint.new(1.00, Color3.fromRGB(0, 224, 63))
+		ColorSequenceKeypoint.new(0.0, Color3.fromRGB(224, 138, 175)),
+		ColorSequenceKeypoint.new(0.50, Color3.fromRGB(224, 138, 175)),
+		ColorSequenceKeypoint.new(1.00, Color3.fromRGB(224, 138, 175))
 	})
 }
 
@@ -70,7 +70,7 @@ local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local CoreGui = game:GetService("CoreGui")
-
+local Console
 local isStudio
 local website = "github.com/Nebula-Softworks"
 
@@ -2918,101 +2918,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 			end
 		end)
 
-		local friendsCooldown = 0
-		local function getPing() return math.clamp(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue(), 10, 700) end
-
-		local function checkFriends()
-			if friendsCooldown == 0 then
-
-				friendsCooldown = 25
-
-				local playersFriends = {}
-				local friendsInTotal = 0
-				local onlineFriends = 0 
-				local friendsInGame = 0 
-
-				local list = Players:GetFriendsAsync(Player.UserId)
-				while true do -- loop through all the pages
-					for _, data in list:GetCurrentPage() do
-						friendsInTotal +=1
-						table.insert(playersFriends, Data)
-					end
-
-					if list.IsFinished then
-						-- stop the loop since this is the last page
-						break
-					else 
-						-- go to the next page
-						list:AdvanceToNextPageAsync()
-					end
-				end
-				for i, v in pairs(Player:GetFriendsOnline()) do
-					onlineFriends += 1
-				end
-
-				for i,v in pairs(playersFriends) do
-					if Players:FindFirstChild(v.Username) then
-						friendsInGame = friendsInGame + 1
-					end
-				end
-
-				HomeTabPage.detailsholder.dashboard.Friends.All.Value.Text = tostring(friendsInTotal).." friends"
-				HomeTabPage.detailsholder.dashboard.Friends.Offline.Value.Text = tostring(friendsInTotal - onlineFriends).." friends"
-				HomeTabPage.detailsholder.dashboard.Friends.Online.Value.Text = tostring(onlineFriends).." friends"
-				HomeTabPage.detailsholder.dashboard.Friends.InGame.Value.Text = tostring(friendsInGame).." friends"
-
-			else
-				friendsCooldown -= 1
-			end
-		end
-
-		local function format(Int)
-			return string.format("%02i", Int)
-		end
-
-		local function convertToHMS(Seconds)
-			local Minutes = (Seconds - Seconds%60)/60
-			Seconds = Seconds - Minutes*60
-			local Hours = (Minutes - Minutes%60)/60
-			Minutes = Minutes - Hours*60
-			return format(Hours)..":"..format(Minutes)..":"..format(Seconds)
-		end
-
-		coroutine.wrap(function()
-			while task.wait() do
-
-
-				-- Players
-				HomeTabPage.detailsholder.dashboard.Server.Players.Value.Text = #Players:GetPlayers().." playing"
-				HomeTabPage.detailsholder.dashboard.Server.MaxPlayers.Value.Text = Players.MaxPlayers.." players can join this server"
-
-				-- Ping
-				HomeTabPage.detailsholder.dashboard.Server.Latency.Value.Text = isStudio and tostring(math.round((Players.LocalPlayer:GetNetworkPing() * 2 ) / 0.01)) .."ms" or tostring(math.floor(getPing()) .."ms")
-
-				-- Time
-				HomeTabPage.detailsholder.dashboard.Server.Time.Value.Text = convertToHMS(time())
-
-				-- Region
-				HomeTabPage.detailsholder.dashboard.Server.Region.Value.Text = Localization:GetCountryRegionForPlayerAsync(Players.LocalPlayer)
-
-				checkFriends()
-			end
-		end)()
-
-		-- Copy JobId
-		local CopyJobId = HomeTabPage.detailsholder.dashboard.Server.JobId
-		local CopyJobIdButton = CopyJobId:FindFirstChild("Interact")
-		if CopyJobIdButton then
-			CopyJobIdButton.MouseButton1Click:Connect(function()
-				setclipboard(tostring(game.JobId))
-				Poltergeist:Notification({
-					Title = "Job Id",
-					Content = "Job Id Copied!",
-					Icon = "check_circle"
-				})
-			end)
-		end
-
 	end
 
 	function Window:CreateSettings(SettingsTabSettings)
@@ -3028,16 +2933,8 @@ function Poltergeist:CreateWindow(WindowSettings)
 		SettingsTabButton.ImageLabel.Image = GetIcon(SettingsTabSettings.Icon, SettingsTabSettings.ImageSource)
 		SettingsTabButton.Visible = false
 
-		local SettingsPage = Elements.Template:Clone()
-		SettingsPage.Name = "Settings"
-		SettingsPage.Title.Text = "Settings"
+		local SettingsPage = Elements.Settings
 		SettingsPage.Visible = true
-		for _, child in ipairs(SettingsPage:GetChildren()) do
-			if (child.ClassName == "Frame" or child.ClassName == "TextLabel") and child.Name ~= "Title" then
-				child:Destroy()
-			end
-		end
-		SettingsPage.Parent = Elements
 
 		local SettingsTab = { Page = SettingsPage }
 
@@ -3064,7 +2961,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		Elements["__SettingsProxy_DoNotUse"]:Destroy()
 
 		-- ============== Tema ==============
-		ProxyTab:CreateSection("Theme")
+		local ThemeSection = ProxyTab:CreateSection("Theme")
 		local c1cp, c2cp, c3cp
 		c1cp = ProxyTab:CreateColorPicker({ Name = "Color 1", Color = Color3.fromRGB(117,164,206) }, "PoltergeistSettingsThemeC1")
 		c2cp = ProxyTab:CreateColorPicker({ Name = "Color 2", Color = Color3.fromRGB(123,201,201) }, "PoltergeistSettingsThemeC2")
@@ -3867,221 +3764,6 @@ function Poltergeist:CreateWindow(WindowSettings)
 				Poltergeist:MakeDetachable(Holder, ProgressSettings.Title, "show_chart")
 
 				return ProgressV
-			end
-			-- Console
-			function Section:CreateConsole(ConsoleSettings)
-				TabPage.Position = UDim2.new(0,0,0,28)
-
-				ConsoleSettings = Kwargify({
-					Title = "Console",
-					MaxLines = 100
-				}, ConsoleSettings or {})
-
-				local ConsoleV = { Settings = ConsoleSettings, Lines = {} }
-
-				local Holder = Instance.new("Frame")
-				Holder.Name = ConsoleSettings.Title .. " - Console"
-				Holder.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
-				Holder.BackgroundTransparency = 1
-				Holder.Size = UDim2.new(1, -25, 0, 180)
-				Holder.ClipsDescendants = true
-				Holder.Parent = TabPage
-
-				local UICorner = Instance.new("UICorner", Holder)
-				UICorner.CornerRadius = UDim.new(0, 6)
-
-				local UIStroke = Instance.new("UIStroke", Holder)
-				UIStroke.Color = Color3.fromRGB(64,61,76)
-				UIStroke.Transparency = 1
-
-				local Title = Instance.new("TextLabel")
-				Title.BackgroundTransparency = 1
-				Title.Position = UDim2.new(0, 14, 0, 6)
-				Title.Size = UDim2.new(1, -28, 0, 18)
-				Title.Font = Enum.Font.GothamMedium
-				Title.TextSize = 13
-				Title.TextColor3 = Color3.fromRGB(240,240,240)
-				Title.TextXAlignment = Enum.TextXAlignment.Left
-				Title.TextTransparency = 1
-				Title.Text = ConsoleSettings.Title
-				Title.Parent = Holder
-
-				local LineDiv = Instance.new("Frame")
-				LineDiv.BackgroundColor3 = Color3.fromRGB(60,58,70)
-				LineDiv.BackgroundTransparency = 1
-				LineDiv.BorderSizePixel = 0
-				LineDiv.Position = UDim2.new(0, 14, 0, 28)
-				LineDiv.Size = UDim2.new(1, -28, 0, 1)
-				LineDiv.Parent = Holder
-
-				local ScrollFrame = Instance.new("ScrollingFrame")
-				ScrollFrame.BackgroundTransparency = 1
-				ScrollFrame.Position = UDim2.new(0, 14, 0, 34)
-				ScrollFrame.Size = UDim2.new(1, -28, 1, -42)
-				ScrollFrame.CanvasSize = UDim2.new(0,0,0,0)
-				ScrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-				ScrollFrame.ScrollBarThickness = 3
-				ScrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100,100,100)
-				ScrollFrame.BorderSizePixel = 0
-				ScrollFrame.Parent = Holder
-
-				local ListLayout = Instance.new("UIListLayout", ScrollFrame)
-				ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-				ListLayout.Padding = UDim.new(0, 2)
-
-				TweenService:Create(Holder, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
-				TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-				TweenService:Create(Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-				TweenService:Create(LineDiv, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.3}):Play()
-
-				local typeColors = {
-					Print = Color3.fromRGB(220,220,220),
-					Warn = Color3.fromRGB(255, 200, 90),
-					Error = Color3.fromRGB(255, 110, 110),
-				}
-
-				local function pushLine(text, kind)
-					local order = #ConsoleV.Lines + 1
-
-					local Line = Instance.new("TextLabel")
-					Line.BackgroundTransparency = 1
-					Line.Size = UDim2.new(1, 0, 0, 16)
-					Line.Font = Enum.Font.Code
-					Line.TextSize = 12
-					Line.TextXAlignment = Enum.TextXAlignment.Left
-					Line.TextColor3 = typeColors[kind] or typeColors.Print
-					Line.TextTransparency = 1
-					Line.LayoutOrder = order
-					Line.RichText = true
-					local prefix = kind == "Warn" and "[WARN] " or kind == "Error" and "[ERROR] " or ""
-					Line.Text = prefix .. tostring(text)
-					Line.Parent = ScrollFrame
-
-					TweenService:Create(Line, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-
-					table.insert(ConsoleV.Lines, Line)
-
-					if #ConsoleV.Lines > ConsoleSettings.MaxLines then
-						local old = table.remove(ConsoleV.Lines, 1)
-						if old then old:Destroy() end
-					end
-
-					task.wait()
-					ScrollFrame.CanvasPosition = Vector2.new(0, ScrollFrame.CanvasSize.Y.Offset)
-				end
-
-				function ConsoleV:Print(text) pushLine(text, "Print") end
-				function ConsoleV:Warn(text) pushLine(text, "Warn") end
-				function ConsoleV:Error(text) pushLine(text, "Error") end
-
-				function ConsoleV:Clear()
-					for _, line in ipairs(ConsoleV.Lines) do
-						line:Destroy()
-					end
-					ConsoleV.Lines = {}
-				end
-
-				function ConsoleV:Destroy()
-					Holder.Visible = false
-					Holder:Destroy()
-				end
-
-				return ConsoleV
-			end
-			-- Changelog
-			function Section:CreateChangelog(Entries)
-				TabPage.Position = UDim2.new(0,0,0,28)
-
-				Entries = Entries or {}
-				local ChangelogV = { Entries = Entries }
-
-				local Holder = Instance.new("Frame")
-				Holder.Name = "Changelog"
-				Holder.BackgroundTransparency = 1
-				Holder.Size = UDim2.new(1, -25, 0, 0)
-				Holder.AutomaticSize = Enum.AutomaticSize.Y
-				Holder.Parent = TabPage
-
-				local ListLayout = Instance.new("UIListLayout", Holder)
-				ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-				ListLayout.Padding = UDim.new(0, 8)
-
-				local function buildEntry(entry, order)
-					local Card = Instance.new("Frame")
-					Card.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
-					Card.BackgroundTransparency = 1
-					Card.Size = UDim2.new(1, 0, 0, 0)
-					Card.AutomaticSize = Enum.AutomaticSize.Y
-					Card.LayoutOrder = order
-					Card.Parent = Holder
-
-					local UICorner = Instance.new("UICorner", Card)
-					UICorner.CornerRadius = UDim.new(0, 6)
-
-					local UIStroke = Instance.new("UIStroke", Card)
-					UIStroke.Color = Color3.fromRGB(64,61,76)
-					UIStroke.Transparency = 1
-
-					local UIPadding = Instance.new("UIPadding", Card)
-					UIPadding.PaddingTop = UDim.new(0, 10)
-					UIPadding.PaddingBottom = UDim.new(0, 10)
-					UIPadding.PaddingLeft = UDim.new(0, 14)
-					UIPadding.PaddingRight = UDim.new(0, 14)
-
-					local Layout = Instance.new("UIListLayout", Card)
-					Layout.SortOrder = Enum.SortOrder.LayoutOrder
-					Layout.Padding = UDim.new(0, 4)
-
-					local Version = Instance.new("TextLabel")
-					Version.BackgroundTransparency = 1
-					Version.Size = UDim2.new(1, 0, 0, 18)
-					Version.Font = Enum.Font.GothamBold
-					Version.TextSize = 14
-					Version.TextColor3 = Color3.fromRGB(224, 138, 175)
-					Version.TextXAlignment = Enum.TextXAlignment.Left
-					Version.TextTransparency = 1
-					Version.LayoutOrder = 0
-					Version.Text = entry.Version or "vX.X"
-					Version.Parent = Card
-
-					TweenService:Create(Card, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
-					TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
-					TweenService:Create(Version, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-
-					for i, change in ipairs(entry.Changes or {}) do
-						local ChangeLine = Instance.new("TextLabel")
-						ChangeLine.BackgroundTransparency = 1
-						ChangeLine.Size = UDim2.new(1, 0, 0, 16)
-						ChangeLine.Font = Enum.Font.Gotham
-						ChangeLine.TextSize = 12
-						ChangeLine.TextColor3 = Color3.fromRGB(210,210,210)
-						ChangeLine.TextXAlignment = Enum.TextXAlignment.Left
-						ChangeLine.TextTransparency = 1
-						ChangeLine.LayoutOrder = i
-						ChangeLine.Text = "•  " .. tostring(change)
-						ChangeLine.Parent = Card
-
-						TweenService:Create(ChangeLine, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-					end
-
-					return Card
-				end
-
-				for i, entry in ipairs(Entries) do
-					buildEntry(entry, i)
-				end
-
-				function ChangelogV:AddEntry(entry)
-					table.insert(ChangelogV.Entries, entry)
-					buildEntry(entry, #ChangelogV.Entries)
-				end
-
-				function ChangelogV:Destroy()
-					Holder.Visible = false
-					Holder:Destroy()
-				end
-
-				return ChangelogV
 			end
 			-- Player List
 			function Section:CreatePlayerList(PlayerListSettings)
@@ -7675,7 +7357,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 			return BindV
 
 		end
-
+		
 		function Tab:CreateKeybind(BindSettings)
 
 			BindSettings = Kwargify({
@@ -7869,7 +7551,167 @@ function Poltergeist:CreateWindow(WindowSettings)
 			return BindV
 
 		end
+		
+		-- Console
+		function Tab:CreateConsole(ConsoleSettings)
+			TabPage.Position = UDim2.new(0,0,0,28)
 
+			ConsoleSettings = Kwargify({
+				Title = "Console",
+				MaxLines = 100
+			}, ConsoleSettings or {})
+
+			local ConsoleV = { Settings = ConsoleSettings, Lines = {} }
+
+			local Holder = PoltergeistUI.SmartWindow.Elements.Interactions.Home.detailsholder.dashboard.Console.Console
+
+			local Title = Holder.TextLabel
+			Title.Text = "Console"
+			
+			local ScrollFrame = Holder.ScrollingFrame
+
+			local typeColors = {
+				Print = Color3.fromRGB(220,220,220),
+				Warn = Color3.fromRGB(255, 200, 90),
+				Error = Color3.fromRGB(255, 110, 110),
+			}
+
+			local function pushLine(text, kind)
+				local order = #ConsoleV.Lines + 1
+
+				local Line = Instance.new("TextLabel")
+				Line.BackgroundTransparency = 1
+				Line.Size = UDim2.new(1, 0, 0, 16)
+				Line.Font = Enum.Font.Code
+				Line.TextSize = 12
+				Line.TextXAlignment = Enum.TextXAlignment.Left
+				Line.TextColor3 = typeColors[kind] or typeColors.Print
+				Line.TextTransparency = 1
+				Line.LayoutOrder = order
+				Line.RichText = true
+				local prefix = kind == "Warn" and "[WARN] " or kind == "Error" and "[ERROR] " or ""
+				Line.Text = prefix .. tostring(text)
+				Line.Parent = ScrollFrame
+
+				TweenService:Create(Line, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+				table.insert(ConsoleV.Lines, Line)
+
+				if #ConsoleV.Lines > ConsoleSettings.MaxLines then
+					local old = table.remove(ConsoleV.Lines, 1)
+					if old then old:Destroy() end
+				end
+
+				task.wait()
+				ScrollFrame.CanvasPosition = Vector2.new(0, ScrollFrame.CanvasSize.Y.Offset)
+			end
+
+			function ConsoleV:Print(text) pushLine(text, "Print") end
+			function ConsoleV:Warn(text) pushLine(text, "Warn") end
+			function ConsoleV:Error(text) pushLine(text, "Error") end
+
+			function ConsoleV:Clear()
+				for _, line in ipairs(ConsoleV.Lines) do
+					line:Destroy()
+				end
+				ConsoleV.Lines = {}
+			end
+
+			function ConsoleV:Destroy()
+				Holder.Visible = false
+				Holder:Destroy()
+			end
+
+			return ConsoleV
+		end
+		
+		-- Changelog
+		function Tab:CreateChangelog(Entries)
+			TabPage.Position = UDim2.new(0,0,0,28)
+
+			Entries = Entries or {}
+			local ChangelogV = { Entries = Entries }
+
+			local Holder = PoltergeistUI.SmartWindow.Elements.Interactions.Home.detailsholder.dashboard.Changelog.Frame.Changelog
+
+			local function buildEntry(entry, order)
+				local Card = Instance.new("Frame")
+				Card.BackgroundColor3 = Color3.fromRGB(32, 30, 38)
+				Card.BackgroundTransparency = 1
+				Card.Size = UDim2.new(1, 0, 0, 0)
+				Card.AutomaticSize = Enum.AutomaticSize.Y
+				Card.LayoutOrder = order
+				Card.Parent = Holder
+
+				local UICorner = Instance.new("UICorner", Card)
+				UICorner.CornerRadius = UDim.new(0, 6)
+
+				local UIStroke = Instance.new("UIStroke", Card)
+				UIStroke.Color = Color3.fromRGB(64,61,76)
+				UIStroke.Transparency = 1
+
+				local UIPadding = Instance.new("UIPadding", Card)
+				UIPadding.PaddingTop = UDim.new(0, 10)
+				UIPadding.PaddingBottom = UDim.new(0, 10)
+				UIPadding.PaddingLeft = UDim.new(0, 14)
+				UIPadding.PaddingRight = UDim.new(0, 14)
+
+				local Layout = Instance.new("UIListLayout", Card)
+				Layout.SortOrder = Enum.SortOrder.LayoutOrder
+				Layout.Padding = UDim.new(0, 4)
+
+				local Version = Instance.new("TextLabel")
+				Version.BackgroundTransparency = 1
+				Version.Size = UDim2.new(1, 0, 0, 18)
+				Version.Font = Enum.Font.GothamBold
+				Version.TextSize = 14
+				Version.TextColor3 = Color3.fromRGB(224, 138, 175)
+				Version.TextXAlignment = Enum.TextXAlignment.Left
+				Version.TextTransparency = 1
+				Version.LayoutOrder = 0
+				Version.Text = entry.Version or "vX.X"
+				Version.Parent = Card
+
+				TweenService:Create(Card, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.5}):Play()
+				TweenService:Create(UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+				TweenService:Create(Version, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+
+				for i, change in ipairs(entry.Changes or {}) do
+					local ChangeLine = Instance.new("TextLabel")
+					ChangeLine.BackgroundTransparency = 1
+					ChangeLine.Size = UDim2.new(1, 0, 0, 16)
+					ChangeLine.Font = Enum.Font.Gotham
+					ChangeLine.TextSize = 12
+					ChangeLine.TextColor3 = Color3.fromRGB(210,210,210)
+					ChangeLine.TextXAlignment = Enum.TextXAlignment.Left
+					ChangeLine.TextTransparency = 1
+					ChangeLine.LayoutOrder = i
+					ChangeLine.Text = "•  " .. tostring(change)
+					ChangeLine.Parent = Card
+
+					TweenService:Create(ChangeLine, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+				end
+
+				return Card
+			end
+
+			for i, entry in ipairs(Entries) do
+				buildEntry(entry, i)
+			end
+
+			function ChangelogV:AddEntry(entry)
+				table.insert(ChangelogV.Entries, entry)
+				buildEntry(entry, #ChangelogV.Entries)
+			end
+
+			function ChangelogV:Destroy()
+				Holder.Visible = false
+				Holder:Destroy()
+			end
+
+			return ChangelogV
+		end
+		
 		-- Dynamic Input
 		function Tab:CreateInput(InputSettings, Flag)
 			local InputV = { IgnoreConfig = false, Class = "Input", Settings = InputSettings }
@@ -9582,7 +9424,7 @@ function Poltergeist:CreateWindow(WindowSettings)
 		Draggable(PPHeader, PluginsPanel)
 	end
 
-	local HUB_CREATOR_PASSWORD = "coolguestroblox"
+	local HUB_CREATOR_PASSWORD = "coolghost"
 	local hubCreatorUnlocked = false
 
 	local function EscapeLuaString(str)
@@ -10288,6 +10130,23 @@ if isStudio then
 	Tabs.Main:CreateLabel({
 		Text = "Label Example",
 		Style = 1
+	})
+	-- Console
+	Console = Tabs.Main:CreateConsole({
+		Title = "Logs",
+		MaxLines = 100
+	})
+	for i = 1,102 do
+		Console:Print(i)
+	end
+	-- Changelog
+	Tabs.Main:CreateChangelog({
+		{
+			Version = "v1.0.0",
+			Changes = {
+				"Initial release",
+			}
+		}
 	})
 	Tabs.Main:CreateLabel({
 		Text = "Information Example",
